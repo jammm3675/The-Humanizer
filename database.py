@@ -1,18 +1,30 @@
 import os
+import logging
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+try:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+except Exception as e:
+    logger.error(f"Failed to initialize Supabase client: {e}")
+    supabase = None
 
 async def get_user(telegram_id: int):
-    response = supabase.table("users").select("*").eq("telegram_id", telegram_id).execute()
-    if response.data:
-        return response.data[0]
+    if not supabase:
+        return None
+    try:
+        response = supabase.table("users").select("*").eq("telegram_id", telegram_id).execute()
+        if response.data:
+            return response.data[0]
+    except Exception as e:
+        logger.error(f"Error fetching user {telegram_id}: {e}")
     return None
 
 async def create_user(telegram_id: int, username: str, bio_info: str = ""):
@@ -23,24 +35,37 @@ async def create_user(telegram_id: int, username: str, bio_info: str = ""):
         "personality_traits": {
             "occupation": "Unknown",
             "vibe": "Neutral",
-            "humanity_score": 50,
+            "humanity_score": {"value": 50, "trend": "stable", "last_change_reason": "New user"},
             "interests": [],
-            "last_interaction_mood": "Neutral"
+            "evolution_stage": "Primordial"
         },
         "conversation_summary": "",
         "message_count": 0,
         "voice_count": 0
     }
-    response = supabase.table("users").insert(data).execute()
-    return response.data[0]
+    if not supabase:
+        return data # Return local data if DB is down
+    try:
+        response = supabase.table("users").insert(data).execute()
+        return response.data[0]
+    except Exception as e:
+        logger.error(f"Error creating user {telegram_id}: {e}")
+        return data
 
 async def update_user(telegram_id: int, updates: dict):
-    response = supabase.table("users").update(updates).eq("telegram_id", telegram_id).execute()
-    return response.data
+    if not supabase:
+        return None
+    try:
+        response = supabase.table("users").update(updates).eq("telegram_id", telegram_id).execute()
+        return response.data
+    except Exception as e:
+        logger.error(f"Error updating user {telegram_id}: {e}")
+        return None
 
 async def increment_counters(telegram_id: int):
     user = await get_user(telegram_id)
     if not user:
+        # If user not in DB, we can't really increment, but we shouldn't crash
         return False, False
 
     new_msg_count = (user.get("message_count", 0) + 1) % 5

@@ -1,6 +1,6 @@
 aiogram>=3.0.0
 supabase
-google-generativeai
+google-genai
 edge-tts
 python-dotenv
 aiohttp
