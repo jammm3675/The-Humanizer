@@ -1,0 +1,78 @@
+import asyncio
+import logging
+import os
+import aiohttp
+from aiogram import Bot, Dispatcher
+from dotenv import load_dotenv
+from handlers.message_handlers import router
+
+load_dotenv()
+
+# Logging setup
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Config
+TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+RENDER_EXTERNAL_URL = os.environ.get("RENDER_EXTERNAL_URL")
+PORT = int(os.environ.get("PORT", 8080))
+
+async def health_check(request):
+    return aiohttp.web.Response(text="I am alive!", status=200)
+
+async def keep_alive_task():
+    """Background task to ping the health endpoint."""
+    logger.info("Starting keep-alive background task...")
+    async with aiohttp.ClientSession() as session:
+        while True:
+            url = os.environ.get('RENDER_EXTERNAL_URL')
+            if not url:
+                logger.warning("⚠️ RENDER_EXTERNAL_URL not found. Skipping keep-alive attempt. Retrying in 60s.")
+                await asyncio.sleep(60)
+                continue
+
+            health_url = f"{url}/health"
+            try:
+                async with session.get(health_url, timeout=30) as response:
+                    if response.status == 200:
+                        logger.info(f"✅ Keep-alive successful to {health_url}")
+                    else:
+                        logger.warning(f"⚠️ Keep-alive to {health_url} returned status {response.status}")
+            except Exception as e:
+                logger.error(f"❌ Keep-alive error: {e}")
+
+            logger.info("...keep-alive sleeping for 10 minutes...")
+            await asyncio.sleep(10 * 60)
+
+async def main():
+    # Initialize Bot and Dispatcher
+    bot = Bot(token=TOKEN)
+    dp = Dispatcher()
+    dp.include_router(router)
+
+    # Web server for health check
+    app = aiohttp.web.Application()
+    app.router.add_get("/health", health_check)
+    runner = aiohttp.web.AppRunner(app)
+    await runner.setup()
+    site = aiohttp.web.TCPSite(runner, "0.0.0.0", PORT)
+
+    # Start tasks
+    logger.info(f"Starting web server on port {PORT}")
+    await site.start()
+
+    # Start keep-alive if URL is provided
+    asyncio.create_task(keep_alive_task())
+
+    # Start Polling
+    logger.info("Starting bot polling...")
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await bot.session.close()
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Bot stopped.")
