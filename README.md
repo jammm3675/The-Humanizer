@@ -59,7 +59,7 @@ python bot.py
 ## Structure
 - `bot.py`: Entry point, web server, and keep-alive.
 - `database.py`: Supabase database interactions.
-- `ai_engine.py`: Gemini 1.5 Flash logic.
+- `ai_engine.py`: Gemini 2.0 Flash logic.
 - `voice_engine.py`: edge-tts voice generation.
 - `handlers/`: Telegram message handlers.
 - `utils.py`: Helper functions (trigger logic).
