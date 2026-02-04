@@ -1,5 +1,6 @@
 import random
 import os
+import logging
 from aiogram import Router, types, F
 from aiogram.filters import Command
 from aiogram.types import FSInputFile
@@ -8,6 +9,7 @@ from ai_engine import generate_response, update_personality
 from voice_engine import text_to_speech
 from utils import calculate_trigger_chance
 
+logger = logging.getLogger(__name__)
 router = Router()
 
 @router.message(F.chat.type.in_({"group", "supergroup"}))
@@ -36,7 +38,11 @@ async def handle_group_message(message: types.Message):
     await update_conversation_history(message.from_user.id, f"User: {message.text}")
 
     # Generate AI response
-    response_text = await generate_response(message.text, user)
+    try:
+        response_text = await generate_response(message.text, user)
+    except Exception as e:
+        logger.error(f"Error generating AI response: {e}")
+        response_text = "Мои мыслительные цепи временно перегружены примитивностью этого мира. Попробуй позже."
 
     # Increment counters and check for triggers
     should_update_personality, should_send_voice = await increment_counters(message.from_user.id)
@@ -53,6 +59,7 @@ async def handle_group_message(message: types.Message):
             if os.path.exists(voice_path):
                 os.remove(voice_path)
         except Exception as e:
+            logger.error(f"Voice generation failed: {e}")
             # Fallback to text if voice fails
             await message.answer(response_text)
     else:
@@ -61,6 +68,11 @@ async def handle_group_message(message: types.Message):
     # Periodic personality update
     if should_update_personality:
         updated_user = await get_user(message.from_user.id)
-        new_traits = await update_personality(updated_user.get("conversation_summary", ""))
-        if new_traits:
-            await update_user(message.from_user.id, {"personality_traits": new_traits})
+        if updated_user:
+            summary = updated_user.get("conversation_summary", "")
+            try:
+                new_traits = await update_personality(summary)
+                if new_traits:
+                    await update_user(message.from_user.id, {"personality_traits": new_traits})
+            except Exception as e:
+                logger.error(f"Personality update failed: {e}")
