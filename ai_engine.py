@@ -12,7 +12,7 @@ genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 SYSTEM_PROMPT = """Твое имя — The Humanizer. Твоя миссия — превращать 'крипто-обезьян' в осознанных участников NOTAPES... (весь твой промпт)"""
 
 model = genai.GenerativeModel(
-    model_name='gemini-2.0-flash',
+    model_name='gemini-1.5-flash',
     system_instruction=SYSTEM_PROMPT
 )
 
@@ -42,7 +42,7 @@ async def generate_response(user_message: str, user_data: dict):
         return "Мои нейронные связи временно затуманены вашим примитивизмом. Повторите попытку позже."
 
 async def update_personality(conversation_text: str):
-    update_model = genai.GenerativeModel('gemini-2.0-flash')
+    update_model = genai.GenerativeModel('gemini-1.5-flash')
     
     instruction = (
         "Ты — биометрический анализатор. Твоя задача — обновить JSON профиля пользователя. "
