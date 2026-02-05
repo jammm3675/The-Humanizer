@@ -33,7 +33,7 @@ async def generate_response(user_message: str, user_data: dict):
     )
 
     response = await client.aio.models.generate_content(
-        model='gemini-1.5-flash-latest',
+        model='gemini-1.5-flash',
         contents=f"Контекст пользователя:\n{context}\n\nСообщение пользователя: {user_message}",
         config=config
     )
@@ -56,7 +56,7 @@ Return ONLY valid JSON.
 
     try:
         response = await client.aio.models.generate_content(
-            model='gemini-1.5-flash-latest',
+            model='gemini-1.5-flash',
             contents=full_prompt,
             config=config
         )
