@@ -12,7 +12,7 @@ genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 SYSTEM_PROMPT = """Твое имя — The Humanizer. Твоя миссия — превращать 'крипто-обезьян' в осознанных участников NOTAPES... (весь твой промпт)"""
 
 model = genai.GenerativeModel(
-    model_name='models/gemini-1.5-flash',
+    model_name='models/gemini-2.5-flash',
     system_instruction=SYSTEM_PROMPT
 )
 
@@ -42,7 +42,7 @@ async def generate_response(user_message: str, user_data: dict):
         return "Мои нейронные связи временно затуманены вашим примитивизмом. Повторите попытку позже."
 
 async def update_personality(conversation_text: str):
-    update_model = genai.GenerativeModel('models/gemini-1.5-flash')
+    update_model = genai.GenerativeModel('models/gemini-2.5-flash-lite')
     
     instruction = (
         "Ты — биометрический анализатор. Твоя задача — обновить JSON профиля пользователя. "
@@ -67,3 +67,25 @@ async def update_personality(conversation_text: str):
     except Exception as e:
         logger.exception("Update Personality Error:")
         return None
+
+async def summarize_history(conversation_text: str):
+    summarize_model = genai.GenerativeModel('models/gemini-2.5-flash-lite')
+
+    instruction = (
+        "Ты — аналитик памяти. Твоя задача — сжать историю диалога, сохранив ключевые факты о пользователе, "
+        "его интересах и текущем контексте общения. Верни краткое резюме (до 500 символов)."
+    )
+
+    prompt = f"{instruction}\n\nДиалог для сжатия:\n{conversation_text}"
+
+    try:
+        response = await summarize_model.generate_content_async(
+            prompt,
+            generation_config=genai.types.GenerationConfig(temperature=0.3)
+        )
+        if not response.candidates:
+            return conversation_text[:1000] # Fallback
+        return response.text.strip()
+    except Exception as e:
+        logger.exception("Summarize History Error:")
+        return conversation_text[:1000] # Fallback

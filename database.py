@@ -66,9 +66,10 @@ async def increment_counters(telegram_id: int):
     user = await get_user(telegram_id)
     if not user:
         # If user not in DB, we can't really increment, but we shouldn't crash
-        return False, False
+        return False, False, False
 
-    new_msg_count = (user.get("message_count", 0) + 1) % 5
+    current_msg_count = user.get("message_count", 0)
+    new_msg_count = current_msg_count + 1
     new_voice_count = (user.get("voice_count", 0) + 1) % 3
 
     updates = {
@@ -78,10 +79,11 @@ async def increment_counters(telegram_id: int):
 
     await update_user(telegram_id, updates)
 
-    should_update_personality = (new_msg_count == 0)
+    should_update_personality = (new_msg_count % 5 == 0)
+    should_summarize = (new_msg_count % 20 == 0)
     should_send_voice = (new_voice_count == 0)
 
-    return should_update_personality, should_send_voice
+    return should_update_personality, should_summarize, should_send_voice
 
 async def update_conversation_history(telegram_id: int, new_message: str):
     user = await get_user(telegram_id)

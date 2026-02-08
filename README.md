@@ -6,7 +6,8 @@ An AI-powered Telegram bot that ironicly guides "crypto-apes" to "human lore".
 - **Persona**: Ironic intellectual guiding users through evolution, biology, and philosophy.
 - **Profiling**: Automatically analyzes and updates user personality traits every 5 messages.
 - **Voice**: Generates male voice responses using `edge-tts`.
-- **Triggers**: Responds to @mentions (100%) and keywords (15%+ chance).
+- **Triggers**: Responds to @mentions (100%), Replies to bot (100%), and keywords (10-20% chance).
+- **Memory**: Automatic conversation summarization every 20 messages to optimize context.
 - **Keep-alive**: Built-in health check and keep-alive to stay active on Render Free Tier.
 
 ## Deployment Guide
@@ -25,13 +26,14 @@ An AI-powered Telegram bot that ironicly guides "crypto-apes" to "human lore".
 4. Copy the **service_role** key (Secret) into `SUPABASE_SERVICE_ROLE_KEY`.
 5. Go to the **SQL Editor** and run the following script:
    ```sql
+   -- Скрипт для создания таблицы пользователей в Supabase
    CREATE TABLE IF NOT EXISTS users (
        telegram_id BIGINT PRIMARY KEY,
        username TEXT,
        bio_info TEXT,
        personality_traits JSONB DEFAULT '{}'::jsonb,
        conversation_summary TEXT DEFAULT '',
-       message_count INTEGER DEFAULT 0,
+       message_count INTEGER DEFAULT 0, -- Кумулятивный счетчик сообщений
        voice_count INTEGER DEFAULT 0,
        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
    );
