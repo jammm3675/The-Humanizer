@@ -15,33 +15,36 @@ router = Router()
 @router.message(F.voice)
 async def handle_voice(message: types.Message):
     """Игнорирование голосовых сообщений с ироничным ответом."""
-    response_text = "Твои нечленораздельные звуки напоминают мне эпоху палеолита. Используй текст, если хочешь быть услышанным."
-    await message.answer(response_text)
+    response_text = "Я не слушаю шум. Пиши буквами, если эволюционировал."
+    await message.reply(response_text)
+
+@router.message(F.chat.type.in_({"private"}))
+async def handle_private_message(message: types.Message):
+    if not message.text:
+        return
+    await process_message(message, force_respond=True)
 
 @router.message(F.chat.type.in_({"group", "supergroup"}))
 async def handle_group_message(message: types.Message):
+    if not message.text:
+        return
+
     bot_user = await message.bot.get_me()
 
     # Check for triggers
-    is_mentioned = False
-    if message.text:
-        is_mentioned = f"@{bot_user.username}" in message.text
-
+    is_mentioned = f"@{bot_user.username}" in message.text
     is_reply_to_bot = False
     if message.reply_to_message and message.reply_to_message.from_user:
         is_reply_to_bot = message.reply_to_message.from_user.id == bot_user.id
 
-    chance = 0.0
-    if not (is_mentioned or is_reply_to_bot) and message.text:
-        chance = calculate_trigger_chance(message.text)
-        # Cap chance at 20% as per "10-20%" instruction
-        chance = min(chance, 0.20)
+    chance = calculate_trigger_chance(message.text)
 
     should_respond = is_mentioned or is_reply_to_bot or (random.random() < chance)
 
-    if not should_respond:
-        return
+    if should_respond:
+        await process_message(message)
 
+async def process_message(message: types.Message, force_respond: bool = False):
     # Process user in DB
     user = await get_user(message.from_user.id)
     if not user:
@@ -50,35 +53,41 @@ async def handle_group_message(message: types.Message):
     # Update conversation history with user message
     await update_conversation_history(message.from_user.id, f"User: {message.text}")
 
+    # Get last 3 bot messages
+    last_bot_messages = user.get("last_bot_messages", [])
+
     # Generate AI response
     try:
-        response_text = await generate_response(message.text, user)
+        response_text = await generate_response(message.text, user, last_bot_messages)
     except Exception as e:
         logger.error(f"Error generating AI response: {e}")
-        response_text = "Мои мыслительные цепи временно перегружены примитивностью этого мира. Попробуй позже."
+        response_text = "Мои нейронные связи временно затуманены. Попробуй позже."
 
-    # Increment counters and check for triggers
+    # Increment counters and check for periodic tasks
     should_update_personality, should_summarize, should_send_voice = await increment_counters(message.from_user.id)
+
+    # Update last bot messages (keep last 3)
+    new_last_bot_messages = (last_bot_messages + [response_text])[-3:]
+    await update_user(message.from_user.id, {"last_bot_messages": new_last_bot_messages})
 
     # Update conversation history with Bot message
     await update_conversation_history(message.from_user.id, f"The Humanizer: {response_text}")
 
-    # Send response
+    # Send response as reply
     if should_send_voice:
         try:
             voice_path = await text_to_speech(response_text)
             voice_file = FSInputFile(voice_path)
-            await message.answer_voice(voice_file)
+            await message.reply_voice(voice_file)
             if os.path.exists(voice_path):
                 os.remove(voice_path)
         except Exception as e:
             logger.error(f"Voice generation failed: {e}")
-            # Fallback to text if voice fails
-            await message.answer(response_text)
+            await message.reply(response_text)
     else:
-        await message.answer(response_text)
+        await message.reply(response_text)
 
-    # Periodic tasks: Summarization and Personality update
+    # Periodic tasks
     updated_user = await get_user(message.from_user.id)
     if not updated_user:
         return
@@ -89,7 +98,6 @@ async def handle_group_message(message: types.Message):
             new_summary = await summarize_history(current_summary)
             if new_summary:
                 await update_user(message.from_user.id, {"conversation_summary": new_summary})
-                # Refresh user data for personality update
                 updated_user = await get_user(message.from_user.id)
         except Exception as e:
             logger.error(f"History summarization failed: {e}")

@@ -8,5 +8,5 @@ def calculate_trigger_chance(text: str) -> float:
     if not found_keywords:
         return 0.0
 
-    chance = 0.15 + (len(found_keywords) - 1) * 0.01
-    return min(chance, 1.0)
+    # Return exactly 15% as per user request
+    return 0.15

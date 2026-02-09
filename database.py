@@ -33,18 +33,23 @@ async def create_user(telegram_id: int, username: str, bio_info: str = ""):
         "username": username,
         "bio_info": bio_info,
         "personality_traits": {
-            "occupation": "Unknown",
-            "vibe": "Neutral",
-            "humanity_score": {"value": 50, "trend": "stable", "last_change_reason": "New user"},
-            "interests": [],
-            "evolution_stage": "Primordial"
+            "relationship": {
+                "trust_level": 30,
+                "annoyance_level": 0,
+                "status": "Stranger"
+            },
+            "memory": {
+                "last_topic": "None",
+                "key_insights": []
+            }
         },
+        "last_bot_messages": [],
         "conversation_summary": "",
         "message_count": 0,
         "voice_count": 0
     }
     if not supabase:
-        return data # Return local data if DB is down
+        return data
     try:
         response = supabase.table("users").insert(data).execute()
         return response.data[0]
@@ -65,7 +70,6 @@ async def update_user(telegram_id: int, updates: dict):
 async def increment_counters(telegram_id: int):
     user = await get_user(telegram_id)
     if not user:
-        # If user not in DB, we can't really increment, but we shouldn't crash
         return False, False, False
 
     current_msg_count = user.get("message_count", 0)
