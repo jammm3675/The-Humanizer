@@ -27,11 +27,10 @@ async def get_user(telegram_id: int):
         logger.error(f"Error fetching user {telegram_id}: {e}")
     return None
 
-async def create_user(telegram_id: int, username: str, bio_info: str = ""):
+async def create_user(telegram_id: int, username: str):
     data = {
         "telegram_id": telegram_id,
         "username": username,
-        "bio_info": bio_info,
         "personality_traits": {
             "relationship": {
                 "trust_level": 30,
@@ -83,8 +82,8 @@ async def increment_counters(telegram_id: int):
 
     await update_user(telegram_id, updates)
 
-    should_update_personality = (new_msg_count % 5 == 0)
-    should_summarize = (new_msg_count % 20 == 0)
+    should_update_personality = (new_msg_count % 20 == 0)
+    should_summarize = (new_msg_count % 50 == 0)
     should_send_voice = (new_voice_count == 0)
 
     return should_update_personality, should_summarize, should_send_voice
