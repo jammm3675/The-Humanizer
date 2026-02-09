@@ -3,6 +3,7 @@ logger = logging.getLogger(__name__)
 import os
 import json
 import google.generativeai as genai
+from google.api_core import exceptions
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -25,7 +26,7 @@ SYSTEM_PROMPT = """Роль: Ты — The Humanizer, старый друг Кл�
 Провокация: Если видишь, что пользователь тупит или ищет легкий путь, подколи его как старого друга: "Опять ты за старое? Сколько можно искать кнопку 'бабло', когда всё уже перед носом?"."""
 
 model = genai.GenerativeModel(
-    model_name='models/gemini-2.5-flash',
+    model_name='models/gemini-2.0-flash',
     system_instruction=SYSTEM_PROMPT
 )
 
@@ -55,12 +56,15 @@ async def generate_response(user_message: str, user_data: dict, last_bot_message
             logger.warning("AI Response blocked or empty candidates.")
             return "Мои нейронные связи временно затуманены. Попробуй позже."
         return response.text.strip()
+    except exceptions.ResourceExhausted:
+        logger.error("Quota exceeded!")
+        return "Друг, я слишком много сегодня думал. Мои нейроны перегрелись, дай мне отдохнуть пару минут, и продолжим."
     except Exception as e:
         logger.exception("Full AI Error stack trace:")
         return "Мои нейронные связи временно затуманены. Повтори позже."
 
 async def update_personality(conversation_text: str):
-    update_model = genai.GenerativeModel('models/gemini-2.5-flash-lite')
+    update_model = genai.GenerativeModel('models/gemini-2.0-flash-lite')
     
     instruction = (
         "Ты — биометрический сканер. Анализируй диалог и возвращай ТОЛЬКО JSON по схеме relationship и memory. "
@@ -88,7 +92,7 @@ async def update_personality(conversation_text: str):
         return None
 
 async def summarize_history(conversation_text: str):
-    summarize_model = genai.GenerativeModel('models/gemini-2.5-flash-lite')
+    summarize_model = genai.GenerativeModel('models/gemini-2.0-flash-lite')
 
     instruction = (
         "Ты — аналитик памяти. Твоя задача — сжать историю диалога, сохранив ключевые факты о пользователе, "
