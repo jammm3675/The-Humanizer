@@ -61,7 +61,7 @@ async def process_message(message: types.Message, force_respond: bool = False):
         response_text = await generate_response(message.text, user, last_bot_messages)
     except Exception as e:
         logger.error(f"Error generating AI response: {e}")
-        response_text = "Мои нейронные связи временно затуманены. Попробуй позже."
+        response_text = "Как-то лень отвечать тебе, давай потом."
 
     # Increment counters and check for periodic tasks
     should_update_personality, should_summarize, should_send_voice = await increment_counters(message.from_user.id)
