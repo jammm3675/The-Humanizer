@@ -73,7 +73,7 @@ async def increment_counters(telegram_id: int):
 
     current_msg_count = user.get("message_count", 0)
     new_msg_count = current_msg_count + 1
-    new_voice_count = (user.get("voice_count", 0) + 1) % 3
+    new_voice_count = (user.get("voice_count", 0) + 1) % 5
 
     updates = {
         "message_count": new_msg_count,
