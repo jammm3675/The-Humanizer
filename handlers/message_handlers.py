@@ -74,18 +74,16 @@ async def process_message(message: types.Message, force_respond: bool = False):
     await update_conversation_history(message.from_user.id, f"The Humanizer: {response_text}")
 
     # Send response as reply
+    voice_path = None
     if should_send_voice:
-        try:
-            voice_path = await text_to_speech(response_text)
-            voice_file = FSInputFile(voice_path)
-            await message.reply_voice(voice_file)
-            if os.path.exists(voice_path):
-                os.remove(voice_path)
-        except Exception as e:
-            logger.error(f"Voice generation failed: {e}")
-            await message.reply(response_text)
+        voice_path = await text_to_speech(response_text)
+
+    if voice_path:
+        await message.answer_voice(FSInputFile(voice_path), reply_to_message_id=message.message_id)
+        if os.path.exists(voice_path):
+            os.remove(voice_path)
     else:
-        await message.reply(response_text)
+        await message.answer(response_text, reply_to_message_id=message.message_id)
 
     # Periodic tasks
     updated_user = await get_user(message.from_user.id)

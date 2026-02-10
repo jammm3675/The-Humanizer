@@ -1,6 +1,6 @@
 aiogram>=3.0.0
 supabase
 groq
-edge-tts
+elevenlabs
 python-dotenv
 aiohttp
