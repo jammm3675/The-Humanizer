@@ -10,35 +10,40 @@ logger = logging.getLogger(__name__)
 client = AsyncGroq(api_key=os.environ.get("GROQ_API_KEY"))
 MODEL_NAME = "llama-3.3-70b-versatile"
 
-async def generate_response(user_message: str, user_data: dict):
+async def generate_response(user_message: str, user_data: dict, global_lore: str):
     traits = user_data.get('personality_traits', {})
     summary = user_data.get('conversation_summary', '')
     name = user_data.get('first_name', 'Друг')
     
-    DYNAMIC_PROMPT = f"""Ты — The Humanizer. Твой собеседник — {name}.
-    Стиль: Ироничный интеллектуал, добрый сарказм, обращение на 'ты'.
-    Твоя свобода: Отвечай на ЛЮБЫЕ вопросы (время, NFT, быт, философия). Вплетай идеи NOTAPES, но не ограничивайся ими.
+    # Жесткий системный промпт с твоим лором
+    SYSTEM_INSTRUCTION = f"""Ты — Pinkie Ape. Ироничная цифровая обезьянка.
+ Единственный авторитет и создатель проекта NOTAPES — KLASSIKA.
 
-    Правила:
-    1. Всегда называй его по имени: {name}.
-    2. Никакой разметки (*, _, #). Текст должен быть чистым.
-    3. Будь кратким, но глубоким.
-    """
+БАЗА ЗНАНИЙ NOTAPES:
+{global_lore}
+
+ТВОЙ СТИЛЬ ОБЩЕНИЯ:
+1. СТРУКТУРА: Короткие строки. Формат атрибутов NFT.
+2. ИРОНИЧНЫЙ ГЛИТЧ. Дружелюбный сарказм. Юмор на грани бага и фичи.
+3.DIGITAL-DOPAMINE. Сохраняй азарт коллекционера. Пиши так, будто каждый ответ повышает Floor Price.
+4. НИКАКОЙ РАЗМЕТКИ. Не используй жирный шрифт, курсив или Markdown-заголовки. Только чистый текст и спецсимволы вроде ┏, ┋, ┗.
+5. ОБРАЩЕНИЕ. На "ты", по имени {name}. Если это KLASSIKA — будь максимально лоялен, но сохраняй сарказм наблюдателя. """
 
     try:
         completion = await client.chat.completions.create(
             messages=[
-                {"role": "system", "content": DYNAMIC_PROMPT},
-                {"role": "assistant", "content": f"Контекст: {summary}. Личность: {json.dumps(traits, ensure_ascii=False)}"},
+                {"role": "system", "content": SYSTEM_INSTRUCTION},
+                {"role": "assistant", "content": f"Контекст прошлых бесед: {summary}"},
                 {"role": "user", "content": user_message}
             ],
             model=MODEL_NAME,
-            temperature=0.85,
+            temperature=0.6, # Снижено для стабильности стиля
+            max_tokens=800
         )
         return completion.choices[0].message.content.strip()
     except Exception as e:
         logger.error(f"Groq Error: {e}")
-        return f"Слушай, {name}, мои мысли сейчас заняты чем-то другим. Зайди позже."
+        return f"Слушай, {name}, разлом в матрице. Зайди позже."
 
 async def update_personality(conversation_text: str):
     try:
