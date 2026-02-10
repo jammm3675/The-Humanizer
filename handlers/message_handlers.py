@@ -48,17 +48,18 @@ async def process_message(message: types.Message, force_respond: bool = False):
     # Process user in DB
     user = await get_user(message.from_user.id)
     if not user:
-        user = await create_user(message.from_user.id, message.from_user.username or message.from_user.first_name)
+        user = await create_user(
+            message.from_user.id,
+            message.from_user.username or message.from_user.first_name,
+            message.from_user.first_name
+        )
 
     # Update conversation history with user message
     await update_conversation_history(message.from_user.id, f"User: {message.text}")
 
-    # Get last 3 bot messages
-    last_bot_messages = user.get("last_bot_messages", [])
-
     # Generate AI response
     try:
-        response_text = await generate_response(message.text, user, last_bot_messages)
+        response_text = await generate_response(message.text, user)
     except Exception as e:
         logger.error(f"Error generating AI response: {e}")
         response_text = "Как-то лень отвечать тебе, давай потом."
@@ -67,6 +68,7 @@ async def process_message(message: types.Message, force_respond: bool = False):
     should_update_personality, should_summarize, should_send_voice = await increment_counters(message.from_user.id)
 
     # Update last bot messages (keep last 3)
+    last_bot_messages = user.get("last_bot_messages", [])
     new_last_bot_messages = (last_bot_messages + [response_text])[-3:]
     await update_user(message.from_user.id, {"last_bot_messages": new_last_bot_messages})
 
