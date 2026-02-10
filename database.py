@@ -80,3 +80,21 @@ async def update_conversation_history(telegram_id: int, new_message: str):
         updated_summary = updated_summary[-5000:]
 
     await update_user(telegram_id, {"conversation_summary": updated_summary})
+
+async def get_global_lore():
+    """Получает актуальный лор из базы данных."""
+    if not supabase: return ""
+    try:
+        response = supabase.table("global_config").select("content").eq("key", "notapes_lore").execute()
+        if response.data:
+            return response.data[0]['content']
+    except Exception as e:
+        logger.error(f"Error fetching global lore: {e}")
+    return ""
+
+async def update_global_lore(new_content: str):
+    if not supabase: return
+    try:
+        supabase.table("global_config").upsert({"key": "notapes_lore", "content": new_content}).execute()
+    except Exception as e:
+        logger.error(f"Error updating lore: {e}")

@@ -4,7 +4,7 @@ import logging
 from aiogram import Router, types, F
 from aiogram.filters import Command
 from aiogram.types import FSInputFile
-from database import get_user, create_user, increment_counters, update_conversation_history, update_user
+from database import get_user, create_user, increment_counters, update_conversation_history, update_user, get_global_lore, update_global_lore
 from ai_engine import generate_response, update_personality, summarize_history
 from voice_engine import text_to_speech
 from utils import calculate_trigger_chance
@@ -17,6 +17,22 @@ async def handle_voice(message: types.Message):
     """Игнорирование голосовых сообщений с ироничным ответом."""
     response_text = "Я не слушаю шум. Пиши буквами, если эволюционировал."
     await message.reply(response_text)
+
+
+@router.message(Command("setlore"))
+async def handle_set_lore(message: types.Message):
+    """Обновление глобального лора админом."""
+    user = await get_user(message.from_user.id)
+    if not user or not user.get("is_admin"):
+        return
+
+    new_lore = message.text.replace("/setlore", "").strip()
+    if not new_lore:
+        await message.reply("Напиши текст лора после команды /setlore")
+        return
+
+    await update_global_lore(new_lore)
+    await message.reply("✅ Глобальный лор обновлен.")
 
 @router.message(F.chat.type.in_({"private"}))
 async def handle_private_message(message: types.Message):
@@ -59,7 +75,8 @@ async def process_message(message: types.Message, force_respond: bool = False):
 
     # Generate AI response
     try:
-        response_text = await generate_response(message.text, user)
+        lore = await get_global_lore()
+        response_text = await generate_response(message.text, user, lore)
     except Exception as e:
         logger.error(f"Error generating AI response: {e}")
         response_text = "Как-то лень отвечать тебе, давай потом."
