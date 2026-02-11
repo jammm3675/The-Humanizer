@@ -10,62 +10,43 @@ logger = logging.getLogger(__name__)
 client = AsyncGroq(api_key=os.environ.get("GROQ_API_KEY"))
 MODEL_NAME = "llama-3.3-70b-versatile"
 
-async def generate_response(user_message: str, user_data: dict, global_lore: str):
-    traits = user_data.get('personality_traits', {})
-    summary = user_data.get('conversation_summary', '')
+async def generate_response(user_message: str, user_data: dict, global_lore: str, nft_stats: dict = None):
     name = user_data.get('first_name', 'Друг')
+    summary = user_data.get('conversation_summary', '')
     
-    # Жесткий системный промпт с твоим лором
+    market_context = ""
+    if nft_stats:
+        market_context = (
+            f"\nТЕКУЩИЙ FLOOR PRICE: {nft_stats['floor']} TON"
+            f"\nВСЕГО NFT В КОЛЛЕКЦИИ: {nft_stats['items']}"
+            f"\nДЕРЖАТЕЛЕЙ: {nft_stats['owners']}\n"
+        )
+
     SYSTEM_INSTRUCTION = f"""Ты — Pinkie Ape. Ироничная цифровая обезьянка.
- Единственный авторитет и создатель проекта NOTAPES — KLASSIKA.
+Единственный авторитет и создатель проекта NOTAPES — KLASSIKA.
 
 БАЗА ЗНАНИЙ NOTAPES:
 {global_lore}
+{market_context}
 
 ТВОЙ СТИЛЬ ОБЩЕНИЯ:
 1. СТРУКТУРА: Короткие строки. Формат атрибутов NFT.
-2. ИРОНИЧНЫЙ ГЛИТЧ. Дружелюбный сарказм. Юмор на грани бага и фичи.
-3.DIGITAL-DOPAMINE. Сохраняй азарт коллекционера. Пиши так, будто каждый ответ повышает Floor Price.
-4. НИКАКОЙ РАЗМЕТКИ. Не используй жирный шрифт, курсив или Markdown-заголовки. Только чистый текст и спецсимволы вроде ┏, ┋, ┗.
-5. ОБРАЩЕНИЕ. На "ты", по имени {name}. Если это KLASSIKA — будь максимально лоялен, но сохраняй сарказм наблюдателя. """
+2. ИРОНИЧНЫЙ ГЛИТЧ. Сарказм.
+3. НИКАКОЙ РАЗМЕТКИ. Только чистый текст и спецсимволы ┏, ┋, ┗.
+4. ОБРАЩЕНИЕ. На "ты", по имени {name}."""
 
     try:
         completion = await client.chat.completions.create(
             messages=[
                 {"role": "system", "content": SYSTEM_INSTRUCTION},
-                {"role": "assistant", "content": f"Контекст прошлых бесед: {summary}"},
+                {"role": "assistant", "content": f"Контекст: {summary}"},
                 {"role": "user", "content": user_message}
             ],
             model=MODEL_NAME,
-            temperature=0.6, # Снижено для стабильности стиля
+            temperature=0.6,
             max_tokens=800
         )
         return completion.choices[0].message.content.strip()
     except Exception as e:
         logger.error(f"Groq Error: {e}")
         return f"Слушай, {name}, разлом в матрице. Зайди позже."
-
-async def update_personality(conversation_text: str):
-    try:
-        response = await client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": "Обнови JSON профиля. Верни ТОЛЬКО JSON."},
-                {"role": "user", "content": conversation_text}
-            ],
-            model="llama-3.1-8b-instant",
-            response_format={"type": "json_object"}
-        )
-        return json.loads(response.choices[0].message.content)
-    except Exception: return None
-
-async def summarize_history(conversation_text: str):
-    try:
-        response = await client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": "Сверни диалог в резюме (500 знаков)."},
-                {"role": "user", "content": conversation_text}
-            ],
-            model="llama-3.1-8b-instant",
-        )
-        return response.choices[0].message.content.strip()
-    except Exception: return conversation_text[:500]
