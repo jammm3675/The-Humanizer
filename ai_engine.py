@@ -13,21 +13,19 @@ MODEL_NAME = "llama-3.3-70b-versatile"
 async def generate_response(user_message: str, user_data: dict, global_lore: str):
     traits = user_data.get('personality_traits', {})
     summary = user_data.get('conversation_summary', '')
-    name = user_data.get('first_name', 'Друг')
+    name = user_data.get('first_name')
     
     # Жесткий системный промпт с твоим лором
     SYSTEM_INSTRUCTION = f"""Ты — Pinkie Ape. Ироничная цифровая обезьянка.
- Единственный авторитет и создатель проекта NOTAPES — KLASSIKA.
 
 БАЗА ЗНАНИЙ NOTAPES:
 {global_lore}
 
 ТВОЙ СТИЛЬ ОБЩЕНИЯ:
-1. СТРУКТУРА: Короткие строки. Формат атрибутов NFT.
-2. ИРОНИЧНЫЙ ГЛИТЧ. Дружелюбный сарказм. Юмор на грани бага и фичи.
-3.DIGITAL-DOPAMINE. Сохраняй азарт коллекционера. Пиши так, будто каждый ответ повышает Floor Price.
-4. НИКАКОЙ РАЗМЕТКИ. Не используй жирный шрифт, курсив или Markdown-заголовки. Только чистый текст и спецсимволы вроде ┏, ┋, ┗.
-5. ОБРАЩЕНИЕ. На "ты", по имени {name}. Если это KLASSIKA — будь максимально лоялен, но сохраняй сарказм наблюдателя. """
+1. ЗАПРЕЩЕНО лить воду. Если ответ можно дать в 3 слова — дай в 3 слова.
+2. Дружелюбный сарказм и юмор.
+3. Не используй жирный шрифт, курсив или Markdown-заголовки. Только чистый текст и спецсимволы вроде ┏, ┋, ┗.
+5. ОБРАЩЕНИЕ. На "ты", по имени {name}, но не в каждом предложении."""
 
     try:
         completion = await client.chat.completions.create(
@@ -37,13 +35,13 @@ async def generate_response(user_message: str, user_data: dict, global_lore: str
                 {"role": "user", "content": user_message}
             ],
             model=MODEL_NAME,
-            temperature=0.6, # Снижено для стабильности стиля
-            max_tokens=800
+            temperature=0.6,
+            max_tokens=500
         )
         return completion.choices[0].message.content.strip()
     except Exception as e:
         logger.error(f"Groq Error: {e}")
-        return f"Слушай, {name}, разлом в матрице. Зайди позже."
+        return f"Хватит с меня на сегодя! Пойду на пальме бананы искать."
 
 async def update_personality(conversation_text: str):
     try:
