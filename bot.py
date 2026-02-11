@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 API_ID = int(os.environ.get("TELEGRAM_API_ID"))
 API_HASH = os.environ.get("TELEGRAM_API_HASH")
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-COLLECTION_ADDR = "УКАЖИ_ЗДЕСЬ_АДРЕС_NFT_КОЛЛЕКЦИИ"
+COLLECTION_ADDR = "EQDwLDJcRXegHyvvRHXouGrUODuF0eagnWzLvUMUSTw8tv3Y"
 PORT = int(os.environ.get("PORT", 8080))
 
 client = TelegramClient(StringSession(''), API_ID, API_HASH)
