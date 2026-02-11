@@ -9,11 +9,9 @@ from handlers.message_handlers import router
 
 load_dotenv()
 
-# Logging setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Config
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 RENDER_EXTERNAL_URL = os.environ.get("RENDER_EXTERNAL_URL")
 RENDER_SERVICE_NAME = os.environ.get("RENDER_SERVICE_NAME")
@@ -26,7 +24,6 @@ async def keep_alive_task():
     """Background task to ping the health endpoint."""
     logger.info("Starting keep-alive background task...")
 
-    # Wait a bit for the server to start
     await asyncio.sleep(10)
 
     async with aiohttp.ClientSession() as session:
@@ -54,7 +51,6 @@ async def keep_alive_task():
             await asyncio.sleep(10 * 60)
 
 async def main():
-    # Initialize Bot and Dispatcher
     if not TOKEN:
         logger.error("TELEGRAM_BOT_TOKEN not found in environment variables!")
         return
@@ -63,21 +59,17 @@ async def main():
     dp = Dispatcher()
     dp.include_router(router)
 
-    # Web server for health check
     app = web.Application()
     app.router.add_get("/health", health_check)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
 
-    # Start tasks
     logger.info(f"Starting web server on port {PORT}")
     await site.start()
 
-    # Start keep-alive
     asyncio.create_task(keep_alive_task())
 
-    # Start Polling
     logger.info("Starting bot polling...")
     try:
         await dp.start_polling(bot)
