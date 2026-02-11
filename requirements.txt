@@ -1,6 +1,0 @@
-telethon
-supabase
-groq
-elevenlabs
-python-dotenv
-aiohttp
