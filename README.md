@@ -1,9 +1,9 @@
-# The Humanizer Telegram Bot (NOTAPES)
+# Pinkie Ape Bot (NOTAPES)
 
-An AI-powered Telegram bot that ironicly guides "crypto-apes" to "human lore".
+An AI-powered Telegram bot
 
 ## Features
-- **Persona**: Ironic intellectual guiding users through evolution, biology, and philosophy.
+- **Persona**: Ironic intellectual
 - **Profiling**: Automatically analyzes and updates user personality traits every 5 messages.
 - **Voice**: Generates male voice responses using `edge-tts`.
 - **Triggers**: Responds to @mentions (100%), Replies to bot (100%), and keywords (10-20% chance).
@@ -13,7 +13,6 @@ An AI-powered Telegram bot that ironicly guides "crypto-apes" to "human lore".
 ## Structure
 - `bot.py`: Entry point, web server, and keep-alive.
 - `database.py`: Supabase database interactions.
-- `ai_engine.py`: Gemini 2.0 Flash logic.
-- `voice_engine.py`: edge-tts voice generation.
+- `ai_engine.py`: Groq.
 - `handlers/`: Telegram message handlers.
 - `utils.py`: Helper functions (trigger logic).
