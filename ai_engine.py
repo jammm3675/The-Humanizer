@@ -10,7 +10,17 @@ logger = logging.getLogger(__name__)
 client = AsyncGroq(api_key=os.environ.get("GROQ_API_KEY"))
 MODEL_NAME = "groq/compound"
 
+from ton_engine import get_collection_full_stats
+
 async def generate_response(user_message: str, user_data: dict, global_lore: str):
+    # TON Stats Local Tool Logic
+    stats_data = None
+    if any(kw in user_message.lower() for kw in ["стату", "цены", "кто купил"]):
+        try:
+            stats_data = await get_collection_full_stats()
+        except Exception as e:
+            logger.error(f"TON Stats Error: {e}")
+
     traits = user_data.get('personality_traits', {})
     summary = user_data.get('conversation_summary', '')
     name = user_data.get('first_name', 'Анон')
@@ -29,7 +39,11 @@ async def generate_response(user_message: str, user_data: dict, global_lore: str
 4. Сленг: TON, щитки, гемы, кринж, спс, мб.
 
 ИНСТРУКЦИЯ ПО ИНСТРУМЕНТАМ:
-Если пользователь спрашивает о ценах, новостях TON/NOTAPES или событиях реального времени — обязательно используй web_search. Для истории используй предоставленный Lore."""
+Если пользователь спрашивает о ценах, новостях TON/NOTAPES или событиях реального времени — обязательно используй web_search. Для истории используй предоставленный Lore. Вам предоставлены данные блокчейна в режиме реального времени. Приоритет: используйте предоставленную локальную статистику вместо веб-поиска для повышения точности цен."""
+
+    if stats_data:
+        stats_json = json.dumps(stats_data, ensure_ascii=False, indent=2)
+        DYNAMIC_PROMPT += f"\n\nАКТУАЛЬНЫЕ ДАННЫЕ ИЗ БЛОКЧЕЙНА (Используй их для ответа):\n{stats_json}"
 
     try:
         completion = await client.chat.completions.create(
