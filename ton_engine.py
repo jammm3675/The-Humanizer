@@ -54,3 +54,30 @@ async def get_collection_full_stats():
         except Exception as e:
             logger.error(f"Error fetching TON data: {e}")
             return {"error": "Блокчейн-сигнал потерян в Acid Pixel..."}
+
+async def get_wallet_nfts(address: str):
+    """Проверяет наличие NFT NOTAPES на конкретном кошельке."""
+    if not API_KEY: return {"error": "No API Key"}
+
+    headers = {"Authorization": f"Bearer {API_KEY}"}
+    async with httpx.AsyncClient(headers=headers, timeout=10.0) as client:
+        try:
+            # Запрос NFT пользователя с фильтром по твоей коллекции
+            url = f"{BASE_URL}/accounts/{address}/nfts?collection={COLLECTION_ADDRESS}&limit=50"
+            res = await client.get(url)
+            res.raise_for_status()
+            data = res.json()
+
+            nft_items = data.get("nft_items", [])
+            if not nft_items:
+                return f"На кошельке {address[:6]}... пусто. Ни одной обезьяны."
+
+            names = [n.get("metadata", {}).get("name", "Unknown Ape") for n in nft_items]
+            return {
+                "owner": address,
+                "total": len(nft_items),
+                "assets": names
+            }
+        except Exception as e:
+            logger.error(f"Wallet API Error: {e}")
+            return {"error": "Не смог просканировать блокчейн."}

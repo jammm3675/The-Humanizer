@@ -88,9 +88,15 @@ async def process_message(message: types.Message, force_respond: bool = False):
     # Increment counters and check for periodic tasks
     should_update_personality, should_summarize, should_send_voice = await increment_counters(message.from_user.id)
 
-    # Update last bot messages (keep last 3)
+    # Update last bot messages (keep last 4 for history)
     last_bot_messages = user.get("last_bot_messages", [])
-    new_last_bot_messages = (last_bot_messages + [response_text])[-3:]
+    if not isinstance(last_bot_messages, list):
+        last_bot_messages = []
+
+    new_history_item_user = {"role": "user", "content": message.text}
+    new_history_item_bot = {"role": "assistant", "content": response_text}
+
+    new_last_bot_messages = (last_bot_messages + [new_history_item_user, new_history_item_bot])[-4:]
     await update_user(message.from_user.id, {"last_bot_messages": new_last_bot_messages})
 
     # Update conversation history with Bot message
