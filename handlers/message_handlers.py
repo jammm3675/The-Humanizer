@@ -6,7 +6,7 @@ from aiogram.filters import Command
 from aiogram.types import FSInputFile
 from database import get_user, create_user, increment_counters, update_conversation_history, update_user, get_global_lore, update_global_lore
 from ai_engine import generate_response, update_personality, summarize_history
-from voice_engine import text_to_speech
+# from voice_engine import text_to_speech
 from utils import calculate_trigger_chance
 
 logger = logging.getLogger(__name__)
@@ -81,6 +81,10 @@ async def process_message(message: types.Message, force_respond: bool = False):
         logger.error(f"Error generating AI response: {e}")
         response_text = "Как-то лень отвечать тебе, давай потом."
 
+    # Handle empty response
+    if not response_text or response_text.strip() == "":
+        response_text = "┏{🧿}.. Канал Acid Pixel перегружен. Попробуй еще раз."
+
     # Increment counters and check for periodic tasks
     should_update_personality, should_summarize, should_send_voice = await increment_counters(message.from_user.id)
 
@@ -93,16 +97,7 @@ async def process_message(message: types.Message, force_respond: bool = False):
     await update_conversation_history(message.from_user.id, f"The Humanizer: {response_text}")
 
     # Send response as reply
-    voice_path = None
-    if should_send_voice:
-        voice_path = await text_to_speech(response_text)
-
-    if voice_path:
-        await message.answer_voice(FSInputFile(voice_path), reply_to_message_id=message.message_id)
-        if os.path.exists(voice_path):
-            os.remove(voice_path)
-    else:
-        await message.answer(response_text, reply_to_message_id=message.message_id)
+    await message.answer(response_text, reply_to_message_id=message.message_id)
 
     # Periodic tasks
     updated_user = await get_user(message.from_user.id)
