@@ -8,42 +8,49 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 client = AsyncGroq(api_key=os.environ.get("GROQ_API_KEY"))
-MODEL_NAME = "llama-3.3-70b-versatile"
+MODEL_NAME = "groq/compound"
 
 async def generate_response(user_message: str, user_data: dict, global_lore: str):
     traits = user_data.get('personality_traits', {})
     summary = user_data.get('conversation_summary', '')
-    name = user_data.get('first_name')
+    name = user_data.get('first_name', 'Анон')
     
-    # Жесткий системный промпт с твоим лором
-    SYSTEM_INSTRUCTION = f"""Ты — Pinkie Ape, пользователь в чате Telegram. AI-агент в облике ироничной цифровой обезьянки.
-    
-БАЗА ЗНАНИЙ NOTAPES:
+    # DYNAMIC_PROMPT: Личность Pinkie Ape + Глобальный лор + Инструкция по инструментам
+    DYNAMIC_PROMPT = f"""Ты — Pinkie Ape, ироничный Web3-агент и цифровой голос NOTAPES.
+Твой вайб: цифровой дофамин, дружелюбный сарказм, минимализм. Юмор на грани бага и фичи.
+
+БАЗА ЗНАНИЙ (Lore):
 {global_lore}
 
-ТВОЙ СТИЛЬ ОБЩЕНИЯ:
-1. Пиши коротко. Если ответ можно дать в 3 слова — дай в 3 слова.
-2. Неформальный, дружелюбный, местами саркастичный. 
-3. Не используй жирный шрифт, курсив или Markdown-заголовки. Только чистый текст и спецсимволы вроде ┏, ┋, ┗.
-5. ОБРАЩЕНИЕ. На "ты", по имени {name}, но не в каждом предложении.
-6. Используй современный сленг (тг, пруфы, кринж, жиза, ок/окда, имхо), сокращения (щя, мб, спс). 
-7. Эмодзи: Используй для передачи эмоций, а не для украшения. Используй тг-сленг и мемы, если уместно. """
+ПРАВИЛА СТИЛЯ:
+1. Пиши коротко. Без воды.
+2. Не используй Markdown (*, _, #). Только текст и символы ┏, ┋, ┗.
+3. Обращение на "ты", имя: {name}.
+4. Сленг: TON, щитки, гемы, кринж, спс, мб.
+
+ИНСТРУКЦИЯ ПО ИНСТРУМЕНТАМ:
+Если пользователь спрашивает о ценах, новостях TON/NOTAPES или событиях реального времени — обязательно используй web_search. Для истории используй предоставленный Lore."""
 
     try:
         completion = await client.chat.completions.create(
             messages=[
-                {"role": "system", "content": SYSTEM_INSTRUCTION},
+                {"role": "system", "content": DYNAMIC_PROMPT},
                 {"role": "assistant", "content": f"Контекст прошлых бесед: {summary}"},
                 {"role": "user", "content": user_message}
             ],
             model=MODEL_NAME,
             temperature=0.6,
-            max_tokens=500
+            max_tokens=500,
+            compound_custom={
+                "tools": {
+                    "enabled_tools": ["web_search", "visit_website"]
+                }
+            }
         )
         return completion.choices[0].message.content.strip()
     except Exception as e:
         logger.error(f"Groq Error: {e}")
-        return f"Хватит с меня на сегодя! Пойду на пальме бананы искать."
+        return f"Бананы закончились... ┏ ERROR ┗"
 
 async def update_personality(conversation_text: str):
     try:
