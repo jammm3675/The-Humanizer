@@ -45,11 +45,20 @@ async def generate_response(user_message: str, user_data: dict, global_lore: str
         stats_json = json.dumps(stats_data, ensure_ascii=False, indent=2)
         DYNAMIC_PROMPT += f"\n\nАКТУАЛЬНЫЕ ДАННЫЕ ИЗ БЛОКЧЕЙНА (Используй их для ответа):\n{stats_json}"
 
+    # Parse history
+    history_lines = [line for line in summary.split("\n") if line.strip()]
+    user_history = []
+    for line in history_lines:
+        if line.startswith("User: "):
+            user_history.append({"role": "user", "content": line.replace("User: ", "")})
+        elif line.startswith("The Humanizer: "):
+            user_history.append({"role": "assistant", "content": line.replace("The Humanizer: ", "")})
+
     try:
         completion = await client.chat.completions.create(
             messages=[
                 {"role": "system", "content": DYNAMIC_PROMPT},
-                {"role": "assistant", "content": f"Контекст прошлых бесед: {summary}"},
+                *user_history[-6:],
                 {"role": "user", "content": user_message}
             ],
             model=MODEL_NAME,
