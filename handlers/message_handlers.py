@@ -116,7 +116,7 @@ async def process_message(message: types.Message):
 
         if should_update_personality:
             try:
-                new_traits = await ai_service.update_personality(updated_user.get("conversation_summary", ""))
+                new_traits = await ai_service.update_personality(updated_user.get("conversation_summary", ""), updated_user.get("personality_traits"))
                 if new_traits:
                     await update_user(message.from_user.id, {"personality_traits": new_traits})
             except Exception as e:

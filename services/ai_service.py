@@ -98,13 +98,40 @@ class AIService:
             logger.error(f"Groq Error: {e}")
             raise
 
-    async def update_personality(self, conversation_text: str):
+    async def update_personality(self, conversation_text: str, current_traits: dict = None):
         if not self.client: return None
+
+        schema = {
+            "relationship": {
+                "trust_level": "number (0-100)",
+                "annoyance_level": "number (0-100)",
+                "status": "string"
+            },
+            "memory": {
+                "last_topic": "string",
+                "key_insights": ["string"]
+            },
+            "experience": ["string"]
+        }
+
+        system_prompt = f"""Ты — аналитик личности. На основе диалога обнови профиль пользователя.
+Верни ТОЛЬКО валидный JSON, строго соответствующий следующей схеме:
+{json.dumps(schema, indent=2, ensure_ascii=False)}
+
+ТЕКУЩИЙ ПРОФИЛЬ:
+{json.dumps(current_traits, indent=2, ensure_ascii=False) if current_traits else "Нет данных"}
+
+КРИТИЧЕСКИЕ ПРАВИЛА:
+1. 'experience' — это ВСЕГДА массив строк (массив []), а не объект ({{}}).
+2. Любые числовые диапазоны или значения с тире (например, курс валют '90-95', возраст '20-25') ДОЛЖНЫ быть в кавычках как строки. JSON не поддерживает тире в числах.
+3. Не добавляй новые поля, не предусмотренные схемой.
+4. Отвечай только чистым JSON без Markdown-разметки или пояснений."""
+
         try:
             response = await self.client.chat.completions.create(
                 messages=[
-                    {"role": "system", "content": "Обнови JSON профиля личности пользователя на основе диалога. Верни ТОЛЬКО JSON."},
-                    {"role": "user", "content": conversation_text}
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"Диалог для анализа:\n{conversation_text}"}
                 ],
                 model="llama-3.1-8b-instant",
                 response_format={"type": "json_object"}
@@ -113,7 +140,6 @@ class AIService:
         except Exception as e:
             logger.error(f"Personality update error: {e}")
             return None
-
     async def summarize_history(self, conversation_text: str):
         if not self.client: return conversation_text[:500]
         try:
