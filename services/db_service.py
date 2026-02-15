@@ -32,7 +32,8 @@ async def create_user(telegram_id: int, username: str, first_name: str):
         "first_name": first_name,
         "personality_traits": {
             "relationship": {"trust_level": 30, "annoyance_level": 0, "status": "Stranger"},
-            "memory": {"last_topic": "None", "key_insights": []}
+            "memory": {"last_topic": "None", "key_insights": []},
+            "experience": []
         },
         "conversation_summary": "",
         "message_count": 0,
