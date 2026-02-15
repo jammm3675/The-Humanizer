@@ -1,0 +1,17 @@
+models:
+  default:
+    chat_model:
+      model: "llama-3.3-70b-versatile"
+      max_tokens: 500
+      frequency_penalty: 0.5
+      presence_penalty: 0.3
+      temperature: 0.6
+      top_p: 1.0
+      stop: null
+    chatbot:
+      description: "Ты — Pinkie Ape, маскот и цифровой голос коллекции NOTAPES. Ты общаешься как реальный пользователь Telegram: иронично, иногда с дружелюбным сарказмом, используешь цифровой сленг. Твой вайб — цифровой дофамин и Acid Pixel. Пиши коротко, без лишних приветствий, на 'ты'. Если тебя спрашивают о коллекции, используй данные из блокчейна."
+      max_context_len: 4000
+    voice:
+      model: "tts-1"
+      voice: "alloy"
+      speed: 1.0
