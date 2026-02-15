@@ -64,6 +64,9 @@ class AIService:
 Имя пользователя: {name}
 Черты личности: {json.dumps(user_data.get('personality_traits', {}), ensure_ascii=False)}
 
+
+ИНСТРУКЦИЯ ПО ФОРМАТИРОВАНИЮ:
+Разрешено и приветствуется использование Markdown (жирный, курсив).
 ИНСТРУКЦИЯ:
 Если пользователь спрашивает о ценах или TON/NOTAPES — используй предоставленные данные блокчейна.
 Приоритет: используй предоставленную локальную статистику вместо веб-поиска."""
@@ -125,5 +128,34 @@ class AIService:
         except Exception as e:
             logger.error(f"Summarization error: {e}")
             return conversation_text[:500]
+
+
+    async def generate_interjection(self, global_lore: str):
+        if not self.client: return None
+
+        system_prompt = self.bot_params.get("description", "")
+
+        prompt = f"""{system_prompt}
+
+БАЗА ЗНАНИЙ (Lore):
+{global_lore}
+
+ЗАДАЧА:
+Напиши короткую ироничную реплику, шутку или мем-фразу про коллекцию NOTAPES или крипту в целом.
+Это должно быть внезапное сообщение в чат.
+Используй Markdown для форматирования (жирный, курсив).
+Пиши как Pinkie Ape: дерзко, цифровой вайб, коротко."""
+
+        try:
+            completion = await self.client.chat.completions.create(
+                messages=[{"role": "system", "content": prompt}],
+                model=self.model_name,
+                temperature=0.9,
+                max_tokens=200
+            )
+            return completion.choices[0].message.content.strip()
+        except Exception as e:
+            logger.error(f"Interjection generation error: {e}")
+            return None
 
 ai_service = AIService()
