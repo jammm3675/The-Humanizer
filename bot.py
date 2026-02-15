@@ -4,18 +4,12 @@ import os
 import aiohttp
 from aiohttp import web
 from aiogram import Bot, Dispatcher
-from dotenv import load_dotenv
+from config.settings import config
 from handlers.message_handlers import router
-
-load_dotenv()
+from middlewares.antiflood import ThrottlingMiddleware
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-RENDER_EXTERNAL_URL = os.environ.get("RENDER_EXTERNAL_URL")
-RENDER_SERVICE_NAME = os.environ.get("RENDER_SERVICE_NAME")
-PORT = int(os.environ.get("PORT", 8080))
 
 async def health_check(request):
     return web.Response(text="I am alive!", status=200)
@@ -23,17 +17,12 @@ async def health_check(request):
 async def keep_alive_task():
     """Background task to ping the health endpoint."""
     logger.info("Starting keep-alive background task...")
-
     await asyncio.sleep(10)
-
     async with aiohttp.ClientSession() as session:
         while True:
-            url = RENDER_EXTERNAL_URL
-            if not url and RENDER_SERVICE_NAME:
-                url = f"https://{RENDER_SERVICE_NAME}.onrender.com"
-
+            url = config.RENDER_EXTERNAL_URL
             if not url:
-                logger.warning("⚠️ Neither RENDER_EXTERNAL_URL nor RENDER_SERVICE_NAME found. Skipping keep-alive attempt. Retrying in 60s.")
+                logger.warning("⚠️ RENDER_EXTERNAL_URL not found. Skipping keep-alive.")
                 await asyncio.sleep(60)
                 continue
 
@@ -42,32 +31,32 @@ async def keep_alive_task():
                 async with session.get(health_url, timeout=30) as response:
                     if response.status == 200:
                         logger.info(f"✅ Keep-alive successful to {health_url}")
-                    else:
-                        logger.warning(f"⚠️ Keep-alive to {health_url} returned status {response.status}")
             except Exception as e:
-                logger.error(f"❌ Keep-alive error for {health_url}: {e}")
+                logger.error(f"❌ Keep-alive error: {e}")
 
-            logger.info("...keep-alive sleeping for 10 minutes...")
             await asyncio.sleep(10 * 60)
 
 async def main():
-    if not TOKEN:
-        logger.error("TELEGRAM_BOT_TOKEN not found in environment variables!")
+    if not config.TELEGRAM_BOT_TOKEN:
+        logger.error("TELEGRAM_BOT_TOKEN not found!")
         return
 
-    bot = Bot(token=TOKEN)
+    bot = Bot(token=config.TELEGRAM_BOT_TOKEN)
     dp = Dispatcher()
+
+    # Register Anti-flood Middleware
+    dp.message.middleware(ThrottlingMiddleware(limit=1.5))
+
     dp.include_router(router)
 
     app = web.Application()
     app.router.add_get("/health", health_check)
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", PORT)
-
-    logger.info(f"Starting web server on port {PORT}")
+    site = web.TCPSite(runner, "0.0.0.0", config.PORT)
     await site.start()
 
+    logger.info(f"Starting web server on port {config.PORT}")
     asyncio.create_task(keep_alive_task())
 
     logger.info("Starting bot polling...")
