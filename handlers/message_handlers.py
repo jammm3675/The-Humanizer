@@ -13,7 +13,7 @@ router = Router()
 async def handle_voice(message: types.Message):
     """Игнорирование голосовых сообщений с ироничным ответом."""
     response_text = "Я не слушаю шум. Пиши буквами, если эволюционировал."
-    await message.reply(response_text, parse_mode="Markdown")
+    await message.reply(response_text)
 
 @router.message(Command("setlore"))
 async def handle_set_lore(message: types.Message):
@@ -24,11 +24,11 @@ async def handle_set_lore(message: types.Message):
 
     new_lore = message.text.replace("/setlore", "").strip()
     if not new_lore:
-        await message.reply("Напиши текст лора после команды /setlore", parse_mode="Markdown")
+        await message.reply("Напиши текст лора после команды /setlore")
         return
 
     await update_global_lore(new_lore)
-    await message.reply("✅ Глобальный лор обновлен.", parse_mode="Markdown")
+    await message.reply("✅ Глобальный лор обновлен.")
 
 @router.message(F.chat.type.in_({"private"}))
 async def handle_private_message(message: types.Message):
@@ -99,7 +99,7 @@ async def process_message(message: types.Message):
     await update_conversation_history(message.from_user.id, f"The Humanizer: {response_text}")
 
     # Send response
-    await message.reply(response_text, parse_mode="Markdown")
+    await message.reply(response_text)
 
     # Background tasks
     if should_summarize or should_update_personality:
