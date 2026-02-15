@@ -98,3 +98,19 @@ async def update_global_lore(new_content: str):
         supabase.table("global_config").upsert({"key": "notapes_lore", "content": new_content}).execute()
     except Exception as e:
         logger.error(f"Error updating lore: {e}")
+
+async def register_chat(chat_id: int, chat_type: str):
+    if not supabase: return
+    try:
+        supabase.table("chats").upsert({"chat_id": chat_id, "chat_type": chat_type}).execute()
+    except Exception as e:
+        logger.error(f"Error registering chat {chat_id}: {e}")
+
+async def get_active_groups():
+    if not supabase: return []
+    try:
+        response = supabase.table("chats").select("chat_id").in_("chat_type", ["group", "supergroup"]).execute()
+        return [item['chat_id'] for item in response.data] if response.data else []
+    except Exception as e:
+        logger.error(f"Error fetching active groups: {e}")
+    return []
