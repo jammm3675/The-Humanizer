@@ -50,7 +50,8 @@ async def handle_group_message(message: types.Message):
         is_reply_to_bot = message.reply_to_message.from_user.id == bot_user.id
 
     chance = calculate_trigger_chance(message.text)
-    should_respond = is_mentioned or is_reply_to_bot or (random.random() < chance)
+    is_joke = any(kw in message.text.lower() for kw in ["анекдот", "шутка", "рассмеши", "joke"])
+    should_respond = is_mentioned or is_reply_to_bot or is_joke or (random.random() < chance)
 
     if should_respond:
         await process_message(message)
@@ -92,7 +93,7 @@ async def process_message(message: types.Message):
     new_history_item_user = {"role": "user", "content": message.text}
     new_history_item_bot = {"role": "assistant", "content": response_text}
 
-    new_last_bot_messages = (last_bot_messages + [new_history_item_user, new_history_item_bot])[-6:]
+    new_last_bot_messages = (last_bot_messages + [new_history_item_user, new_history_item_bot])[-4:]
     await update_user(message.from_user.id, {"last_bot_messages": new_last_bot_messages})
 
     # Update conversation history summary
