@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import logging
 import json
 import re
@@ -14,7 +15,7 @@ class AIService:
         self.chat_params = config.get_chat_model_params()
         self.bot_params = config.get_chatbot_params()
         self.model_name = self.chat_params.get("model", "llama-3.3-70b-versatile")
-        self.max_context_len = self.bot_params.get("max_context_len", 4000)
+        self.max_context_len = self.bot_params.get("max_context_len", 2000)
         self._client = None
 
     @property
@@ -70,7 +71,7 @@ class AIService:
 2. Текст + символы (┏, ┃, ┗, 🧿, 👾, 🤖).
 3. RU/EN only. NO Chinese.
 4. НИКАКИХ фигурных скобок или JSON-структур в ответе.
-5. Приоритет: локальная статистика блокчейна.""
+5. Приоритет: локальная статистика блокчейна."""
 
         if stats_data:
             context_injection = f"\n\nАКТУАЛЬНЫЕ ДАННЫЕ ИЗ БЛОКЧЕЙНА:\n{json.dumps(stats_data, ensure_ascii=False)}"
@@ -115,7 +116,7 @@ class AIService:
             "experience": ["string"]
         }
 
-        system_prompt = f"""Ты — аналитик личности. На основе диалога обнови профиль пользователя.
+        system_prompt = f"""Ты - аналитик личности. На основе диалога обнови профиль пользователя.
 Верни ТОЛЬКО валидный JSON, строго соответствующий следующей схеме:
 {json.dumps(schema, indent=2, ensure_ascii=False)}
 
@@ -123,7 +124,7 @@ class AIService:
 {json.dumps(current_traits, indent=2, ensure_ascii=False) if current_traits else "Нет данных"}
 
 КРИТИЧЕСКИЕ ПРАВИЛА:
-1. 'experience' — это ВСЕГДА массив строк (массив []), а не объект ({{}}).
+1. 'experience' - это ВСЕГДА массив строк (массив []), а не объект ({{}}).
 2. Любые числовые диапазоны или значения с тире (например, курс валют '90-95', возраст '20-25') ДОЛЖНЫ быть в кавычках как строки. JSON не поддерживает тире в числах.
 3. Не добавляй новые поля, не предусмотренные схемой.
 4. Отвечай только чистым JSON без Markdown-разметки или пояснений."""
