@@ -1,4 +1,4 @@
-KEYWORDS = ["обезьяна", "ape", "бананы", "floor price", "когда минт", "wen lambo", "lfg", "moon", "когда листинг", "банан", "стату", "цены", "кто купил"]
+KEYWORDS = ["обезьяна", "ape", "бананы", "floor price", "когда минт", "wen lambo", "lfg", "moon", "когда листинг", "банан", "стату", "цены", "кто купил", "анекдот", "шутка", "рассмеши", "joke", "getgems", "холдер", "volume", "объем"]
 
 def calculate_trigger_chance(text: str) -> float:
     if not text:

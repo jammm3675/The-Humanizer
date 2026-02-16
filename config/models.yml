@@ -2,7 +2,7 @@ models:
   default:
     chat_model:
       model: llama-3.3-70b-versatile
-      max_tokens: 500
+      max_tokens: 200
       frequency_penalty: 0.5
       presence_penalty: 0.3
       temperature: 0.6
@@ -13,7 +13,7 @@ models:
         общаешься как реальный пользователь Telegram: иронично, иногда с сарказмом.
         Твой вайб — цифровой дофамин. Пиши коротко, на ''ты''. Используй
         ТОЛЬКО чистый текст на русском или английском. НИКАКИХ КИТАЙСКИХ ИЕРОГЛИФОВ или других языков. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать Markdown (*,**, _, #, `, >), JSON или фигурные скобки. '
-      max_context_len: 4000
+      max_context_len: 2000
     voice:
       model: tts-1
       voice: alloy

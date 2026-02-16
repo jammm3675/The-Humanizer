@@ -45,7 +45,7 @@ class AIService:
             stats_data = await ton_service.get_wallet_nfts(address)
 
         # 2. ПРОВЕРКА НА ОБЩУЮ СТАТИСТИКУ
-        elif any(kw in user_message.lower() for kw in ["стату", "цены", "floor", "коллекци", "дашборд"]):
+        elif any(kw in user_message.lower() for kw in ["стату", "цены", "floor", "коллекци", "дашборд", "getgems", "холдер", "volume", "объем"]):
             try:
                 stats_data = await ton_service.get_collection_full_stats()
             except Exception as e:
@@ -65,13 +65,12 @@ class AIService:
 Черты личности: {json.dumps(user_data.get('personality_traits', {}), ensure_ascii=False)}
 
 
-СТРОГИЕ ПРАВИЛА ФОРМАТИРОВАНИЯ:
-1. НИКАКОГО Markdown (запрещены *, _, #, `, >).
-2. НИКАКИХ фигурных скобок {{ }} или JSON-подобных структур в ответе.
-3. Используй только чистый текст и цифровые символы (┏, ┃, ┗, 🧿, 👾, 🤖).
-4. Пиши только на русском или английском. Категорически запрещены китайские иероглифы.
-5. Если спрашивают о ценах или блокчейне — используй предоставленные данные.
-6. Приоритет: используй предоставленную локальную статистику вместо общих знаний."""
+ПРАВИЛА:
+1. НЕТ Markdown, JSON, {{ }}.
+2. Текст + символы (┏, ┃, ┗, 🧿, 👾, 🤖).
+3. RU/EN only. NO Chinese.
+4. НИКАКИХ фигурных скобок или JSON-структур в ответе.
+5. Приоритет: локальная статистика блокчейна.""
 
         if stats_data:
             context_injection = f"\n\nАКТУАЛЬНЫЕ ДАННЫЕ ИЗ БЛОКЧЕЙНА:\n{json.dumps(stats_data, ensure_ascii=False)}"
@@ -80,7 +79,7 @@ class AIService:
         user_history = user_data.get('last_bot_messages', [])
 
         messages = [{"role": "system", "content": DYNAMIC_PROMPT}]
-        for msg in user_history[-6:]:
+        for msg in user_history[-4:]:
             messages.append(msg)
         messages.append({"role": "user", "content": user_message})
 
@@ -89,7 +88,7 @@ class AIService:
                 messages=messages,
                 model=self.model_name,
                 temperature=self.chat_params.get("temperature", 0.7),
-                max_tokens=self.chat_params.get("max_tokens", 500),
+                max_tokens=self.chat_params.get("max_tokens", 200),
                 top_p=self.chat_params.get("top_p", 1.0),
                 frequency_penalty=self.chat_params.get("frequency_penalty", 0.0),
                 presence_penalty=self.chat_params.get("presence_penalty", 0.0),

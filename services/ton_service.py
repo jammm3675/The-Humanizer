@@ -26,6 +26,8 @@ class TONService:
         headers = {"Authorization": f"Bearer {self.api_key}"}
         async with httpx.AsyncClient(headers=headers, timeout=15.0) as client:
             response = await client.get(f"{BASE_URL}{endpoint}", params=params)
+            if response.status_code != 200:
+                logger.error(f"TON API Error: {response.status_code} - {response.text}")
             response.raise_for_status()
             return response.json()
 
