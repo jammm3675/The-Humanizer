@@ -74,7 +74,27 @@ class AIService:
 5. Приоритет: локальная статистика блокчейна."""
 
         if stats_data:
-            context_injection = f"\n\nАКТУАЛЬНЫЕ ДАННЫЕ ИЗ БЛОКЧЕЙНА:\n{json.dumps(stats_data, ensure_ascii=False)}"
+            # Оптимизируем данные: оставляем только самое важное
+            if "floor_price" in stats_data or "statistics" in stats_data:
+                # Если это общая статистика коллекции
+                stats = stats_data.get("statistics", stats_data) # на случай разной структуры API
+                filtered_stats = {
+                    "floor": stats.get("floor_price"),
+                    "volume_7d": stats.get("volume_7d"),
+                    "holders": stats.get("holders_count"),
+                    "owners": stats.get("owner_count")
+                }
+            elif isinstance(stats_data, list):
+                # Если это список NFT в кошельке, берем только названия первых 5 штук
+                filtered_stats = {
+                    "total_nfts": len(stats_data),
+                    "nfts": [nft.get("metadata", {}).get("name", "Unknown NFT") for nft in stats_data[:5]]
+                }
+            else:
+                filtered_stats = stats_data # Если структура неизвестна
+
+            # Превращаем в строку только отфильтрованные данные
+            context_injection = f"\n\nАКТУАЛЬНЫЕ ДАННЫЕ ИЗ БЛОКЧЕЙНА:\n{json.dumps(filtered_stats, ensure_ascii=False)}"
             DYNAMIC_PROMPT += context_injection
 
         user_history = user_data.get('last_bot_messages', [])
