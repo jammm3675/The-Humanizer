@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 GRAPHQL_URL = "https://api.getgems.io/graphql"
 REST_URL = "https://api.getgems.io"
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 class GetgemsService:
     def __init__(self):
@@ -54,7 +55,11 @@ class GetgemsService:
         reraise=True
     )
     async def _make_rest_request(self, endpoint: str, params: dict = None):
-        headers = {"X-API-KEY": self.api_key}
+        headers = {
+            "x-api-key": self.api_key,
+            "Accept": "application/json",
+            "User-Agent": USER_AGENT
+        }
         async with httpx.AsyncClient(headers=headers, timeout=15.0) as client:
             url = f"{REST_URL}{endpoint}"
             response = await client.get(url, params=params)
@@ -71,36 +76,25 @@ class GetgemsService:
             return response.json()
 
     async def get_collection_full_stats(self):
-        """Получает детальную статистику коллекции через Getgems GraphQL API."""
+        """Получает детальную статистику коллекции через Getgems REST API."""
         if not self.api_key or not self.collection_address:
             return {"error": "Config missing (API Key or Address)"}
 
-        query = """
-        query ($address: String!) {
-          alphaNftCollectionStats(address: $address) {
-            floorPrice
-            itemsCount
-            ownerCount
-            volume
-          }
-        }
-        """
-        variables = {"address": self.collection_address}
-
         try:
-            result = await self._make_graphql_request(query, variables)
-            data = result.get("data", {}).get("alphaNftCollectionStats", {})
+            endpoint = f"/public-api/v1/collections/{self.collection_address}/stats"
+            data = await self._make_rest_request(endpoint)
 
             if not data:
-                logger.warning(f"Getgems returned empty stats for {self.collection_address}. Response: {result}")
+                logger.warning(f"Getgems returned empty stats for {self.collection_address}")
                 return {"error": "Пустой ответ от Getgems API"}
 
-            # Извлекаем данные
-            # Конвертируем floorPrice из наноконов в TON (divide by 10^9)
-            floor_price_nano = data.get("floorPrice")
-            volume_nano = data.get("volume")
-            items_count = data.get("itemsCount", 0)
-            owner_count = data.get("ownerCount", 0)
+            # Извлекаем данные из REST ответа
+            stats = data.get("data", data) if isinstance(data, dict) else {}
+
+            floor_price_nano = stats.get("floorPrice") or stats.get("floor_price")
+            volume_nano = stats.get("volume") or stats.get("total_volume")
+            items_count = stats.get("itemsCount") or stats.get("items_count") or 0
+            owner_count = stats.get("ownerCount") or stats.get("owner_count") or 0
 
             report = {
                 "name": "NOTAPES",
@@ -115,7 +109,6 @@ class GetgemsService:
         except Exception as e:
             logger.error(f"Error fetching Getgems data: {e}")
             return {"error": f"Сигнал Getgems потерян... ({str(e)})"}
-
     async def get_wallet_nfts(self, address: str):
         """Получает NFT конкретного кошелька, отфильтрованных по collection_address."""
         if not self.api_key or not self.collection_address:
