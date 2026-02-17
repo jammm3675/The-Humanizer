@@ -5,7 +5,7 @@ import re
 from tenacity import retry, stop_after_attempt, wait_exponential
 from groq import AsyncGroq
 from config.settings import config
-from services.ton_service import ton_service
+from services.getgems_service import getgems_service
 
 logger = logging.getLogger(__name__)
 
@@ -43,12 +43,12 @@ class AIService:
         if wallet_match:
             address = wallet_match.group(0)
             logger.info(f"Detected wallet address: {address}")
-            stats_data = await ton_service.get_wallet_nfts(address)
+            stats_data = await getgems_service.get_wallet_nfts(address)
 
         # 2. ПРОВЕРКА НА ОБЩУЮ СТАТИСТИКУ
         elif any(kw in user_message.lower() for kw in ["стату", "цены", "floor", "коллекци", "дашборд", "getgems", "холдер", "volume", "объем"]):
             try:
-                stats_data = await ton_service.get_collection_full_stats()
+                stats_data = await getgems_service.get_collection_full_stats()
             except Exception as e:
                 logger.error(f"TON Stats Error: {e}")
 
