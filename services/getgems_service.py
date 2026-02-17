@@ -7,7 +7,8 @@ from config.settings import config
 
 logger = logging.getLogger(__name__)
 
-BASE_URL = "https://api.getgems.io"
+GRAPHQL_URL = "https://api.getgems.io/graphql"
+REST_URL = "https://api.getgems.io"
 
 class GetgemsService:
     def __init__(self):
@@ -24,10 +25,38 @@ class GetgemsService:
         retry=retry_if_exception_type(httpx.HTTPError),
         reraise=True
     )
-    async def _make_request(self, endpoint: str, params: dict = None):
+    async def _make_graphql_request(self, query: str, variables: dict = None):
+        headers = {
+            "X-API-KEY": self.api_key,
+            "Content-Type": "application/json"
+        }
+        payload = {"query": query}
+        if variables:
+            payload["variables"] = variables
+
+        async with httpx.AsyncClient(headers=headers, timeout=15.0) as client:
+            response = await client.post(GRAPHQL_URL, json=payload)
+
+            if response.status_code != 200:
+                logger.error(f"Getgems GraphQL Error: {response.status_code} - {response.text}")
+                response.raise_for_status()
+
+            result = response.json()
+            if "errors" in result:
+                logger.error(f"Getgems GraphQL Errors: {result['errors']}")
+
+            return result
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type(httpx.HTTPError),
+        reraise=True
+    )
+    async def _make_rest_request(self, endpoint: str, params: dict = None):
         headers = {"X-API-KEY": self.api_key}
         async with httpx.AsyncClient(headers=headers, timeout=15.0) as client:
-            url = f"{BASE_URL}{endpoint}"
+            url = f"{REST_URL}{endpoint}"
             response = await client.get(url, params=params)
 
             if response.status_code == 429:
@@ -42,26 +71,42 @@ class GetgemsService:
             return response.json()
 
     async def get_collection_full_stats(self):
-        """Получает детальную статистику коллекции через Getgems Read API."""
+        """Получает детальную статистику коллекции через Getgems GraphQL API."""
         if not self.api_key or not self.collection_address:
             return {"error": "Config missing (API Key or Address)"}
 
-        try:
-            # Endpoint для получения атрибутов коллекции
-            endpoint = f"/nft/collection/{self.collection_address}"
-            data = await self._make_request(endpoint)
+        query = """
+        query ($address: String!) {
+          alphaNftCollectionStats(address: $address) {
+            floorPrice
+            itemsCount
+            ownerCount
+            volume
+          }
+        }
+        """
+        variables = {"address": self.collection_address}
 
-            # Извлекаем floorPrice, volume, и itemsCount
-            # Конвертируем из наноконов в TON
-            floor_price_nano = data.get("floorPrice", 0)
-            volume_nano = data.get("volume", 0)
+        try:
+            result = await self._make_graphql_request(query, variables)
+            data = result.get("data", {}).get("alphaNftCollectionStats", {})
+
+            if not data:
+                logger.warning(f"Getgems returned empty stats for {self.collection_address}. Response: {result}")
+                return {"error": "Пустой ответ от Getgems API"}
+
+            # Извлекаем данные
+            # Конвертируем floorPrice из наноконов в TON (divide by 10^9)
+            floor_price_nano = data.get("floorPrice")
+            volume_nano = data.get("volume")
             items_count = data.get("itemsCount", 0)
+            owner_count = data.get("ownerCount", 0)
 
             report = {
-                "name": data.get("name", "NOTAPES"),
-                "floor_price": f"{float(floor_price_nano) / 1e9:.2f} TON",
-                "total_volume": f"{float(volume_nano) / 1e9:.2f} TON",
-                "holders": items_count,
+                "name": "NOTAPES",
+                "floor_price": f"{float(floor_price_nano) / 1e9:.2f} TON" if floor_price_nano else "0.00 TON",
+                "total_volume": f"{float(volume_nano) / 1e9:.2f} TON" if volume_nano else "0.00 TON",
+                "holders": owner_count,
                 "total_items": items_count
             }
 
@@ -80,7 +125,7 @@ class GetgemsService:
             # Endpoint для получения NFT кошелька
             endpoint = f"/nft/user/{address}/items"
             params = {"collectionAddress": self.collection_address}
-            data = await self._make_request(endpoint, params=params)
+            data = await self._make_rest_request(endpoint, params=params)
 
             # data может быть списком или содержать поле items
             items = data if isinstance(data, list) else data.get("items", [])
