@@ -46,7 +46,7 @@ class AIService:
             stats_data = await getgems_service.get_wallet_nfts(address)
 
         # 2. ПРОВЕРКА НА ОБЩУЮ СТАТИСТИКУ
-        elif any(kw in user_message.lower() for kw in ["стату", "цена", "цены", "floor", "коллекци", "дашборд", "getgems", "холдер", "volume", "объем", "флор", "почем", "сколько стоит"]):
+        elif any(kw in user_message.lower() for kw in ["стату", "стата", "цена", "цены", "floor", "коллекци", "дашборд", "getgems", "холдер", "volume", "объем", "флор", "почем", "сколько стоит"]):
             try:
                 stats_data = await getgems_service.get_collection_full_stats()
             except Exception as e:
@@ -72,19 +72,13 @@ class AIService:
 3. RU/EN only. NO Chinese.
 4. НИКАКИХ фигурных скобок или JSON-структур в ответе.
 5. Приоритет: локальная статистика блокчейна.
-6. Если пользователь спрашивает цену или флор, ТЫ ОБЯЗАН использовать данные из Getgems API. Если API вернул ошибку, честно скажи, что не можешь получить данные, НЕ ПРИДУМЫВАЙ цифры из головы."""
+6. Если пользователь спрашивает цену или флор, ТЫ ОБЯЗАН использовать данные из Getgems API. Если API вернул ошибку (она будет в поле error), ты обязан ответить: 'Связь с Getgems прервана, сижу без данных 🔌'. Категорически запрещено использовать старые цифры или придумывать их из головы."""
 
         if stats_data:
             # Оптимизируем данные: оставляем только самое важное
-            if "floor_price" in stats_data or "statistics" in stats_data:
-                # Если это общая статистика коллекции
-                stats = stats_data.get("statistics", stats_data) # на случай разной структуры API
-                filtered_stats = {
-                    "floor": stats.get("floor_price"),
-                    "volume_7d": stats.get("volume_7d"),
-                    "holders": stats.get("holders_count"),
-                    "owners": stats.get("owner_count")
-                }
+            if "floor_price" in stats_data or "error" in stats_data:
+                # Если это общая статистика коллекции или ошибка
+                filtered_stats = stats_data
             elif isinstance(stats_data, list):
                 # Если это список NFT в кошельке, берем только названия первых 5 штук
                 filtered_stats = {
