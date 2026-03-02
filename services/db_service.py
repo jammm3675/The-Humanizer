@@ -31,9 +31,9 @@ async def create_user(telegram_id: int, username: str, first_name: str):
         "username": username,
         "first_name": first_name,
         "personality_traits": {
-            "relationship": {"trust_level": 30, "annoyance_level": 0, "status": "Stranger"},
-            "memory": {"last_topic": "None", "key_insights": []},
-            "experience": []
+            "status": "Stranger",
+            "trust_level": 30,
+            "last_topic": "None"
         },
         "conversation_summary": "",
         "message_count": 0,
@@ -99,6 +99,21 @@ async def update_global_lore(new_content: str):
         supabase.table("global_config").upsert({"key": "notapes_lore", "content": new_content}).execute()
     except Exception as e:
         logger.error(f"Error updating lore: {e}")
+
+async def get_personality_config():
+    """Забирает JSON из таблицы global_config по ключу bot_personality."""
+    if not supabase: return None
+    try:
+        response = supabase.table("global_config").select("content").eq("key", "bot_personality").execute()
+        if response.data:
+            import json
+            content = response.data[0]['content']
+            if isinstance(content, str):
+                return json.loads(content)
+            return content
+    except Exception as e:
+        logger.error(f"Error fetching personality config: {e}")
+    return None
 
 async def register_chat(chat_id: int, chat_type: str):
     if not supabase: return
