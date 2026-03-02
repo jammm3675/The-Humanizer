@@ -9,7 +9,6 @@ class Config:
     SUPABASE_URL = os.getenv("SUPABASE_URL")
     SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
     GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-    TON_API_KEY = os.getenv("TON_API_KEY")
     GETGEMS_API_KEY = os.getenv("GETGEMS_API_KEY")
     TON_COLLECTION_ADDRESS = os.getenv("TON_COLLECTION_ADDRESS")
     ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")

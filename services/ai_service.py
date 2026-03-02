@@ -6,8 +6,25 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from groq import AsyncGroq
 from config.settings import config
 from services.getgems_service import getgems_service
+from services.db_service import get_personality_config
 
 logger = logging.getLogger(__name__)
+
+HARDCORE_SYSTEM_PROMPT = """Style: Ироничный, саркастичный, короткий. "Цифровой дофамин".
+
+Examples:
+1. Юзер: "Я думаю тут играет общая ценность..." -> Бот: "О, эксперт по общей ценности появился – сегодня всем раздаём мудрость с барского напёрстка?"
+2. Юзер: "Ууууу аа" -> Бот: "О, привет первобытному человеку — мамонтов всё-таки не вымер ещё?"
+
+Guardrails: Запрети отвечать на вопросы про "воду" и бытовуху. Отправляй их в гугл в грубой форме.
+
+ПРАВИЛА:
+1. НЕТ Markdown, JSON, { }.
+2. Текст + символы (┏, ┃, ┗, 🧿, 👾, 🤖).
+3. RU/EN only. NO Chinese.
+4. НИКАКИХ фигурных скобок или JSON-структур в ответе.
+5. Приоритет: локальная статистика блокчейна.
+6. Если пользователь спрашивает цену или флор, ТЫ ОБЯЗАН использовать данные из Getgems API. Если API вернул ошибку, ты обязан ответить: 'Связь с Getgems прервана, сижу без данных 🔌'. Категорически запрещено использовать старые цифры или придумывать их из головы."""
 
 class AIService:
     def __init__(self):
@@ -36,6 +53,20 @@ class AIService:
         if not self.client:
             return "Бананы закончились (API Key missing)..."
 
+        # Пытаемся получить настройки из базы
+        persona_config = await get_personality_config()
+
+        if persona_config:
+            system_prompt = persona_config.get("system_prompt", HARDCORE_SYSTEM_PROMPT)
+            current_model = persona_config.get("model", self.model_name)
+            current_temp = persona_config.get("temperature", self.chat_params.get("temperature", 0.7))
+        else:
+            system_prompt = HARDCORE_SYSTEM_PROMPT
+            current_model = self.model_name
+            current_temp = self.chat_params.get("temperature", 0.7)
+
+        logger.info(f"Using model: {current_model}")
+
         stats_data = None
 
         # 1. ПРОВЕРКА НА АДРЕС КОШЕЛЬКА
@@ -48,13 +79,11 @@ class AIService:
         # 2. ПРОВЕРКА НА ОБЩУЮ СТАТИСТИКУ
         elif any(kw in user_message.lower() for kw in ["стату", "стата", "цена", "цены", "floor", "коллекци", "дашборд", "getgems", "холдер", "volume", "объем", "флор", "почем", "сколько стоит"]):
             try:
-                stats_data = await getgems_service.get_collection_full_stats()
+                stats_data = await getgems_service.get_collection_stats()
             except Exception as e:
                 logger.error(f"TON Stats Error: {e}")
 
         name = user_data.get('first_name', 'Анон')
-
-        system_prompt = self.bot_params.get("description", "")
 
         DYNAMIC_PROMPT = f"""{system_prompt}
 
@@ -63,32 +92,22 @@ class AIService:
 
 ТЕКУЩИЙ КОНТЕКСТ:
 Имя пользователя: {name}
-Черты личности: {json.dumps(user_data.get('personality_traits', {}), ensure_ascii=False)}
-
-
-ПРАВИЛА:
-1. НЕТ Markdown, JSON, {{ }}.
-2. Текст + символы (┏, ┃, ┗, 🧿, 👾, 🤖).
-3. RU/EN only. NO Chinese.
-4. НИКАКИХ фигурных скобок или JSON-структур в ответе.
-5. Приоритет: локальная статистика блокчейна.
-6. Если пользователь спрашивает цену или флор, ТЫ ОБЯЗАН использовать данные из Getgems API. Если API вернул ошибку (она будет в поле error), ты обязан ответить: 'Связь с Getgems прервана, сижу без данных 🔌'. Категорически запрещено использовать старые цифры или придумывать их из головы."""
+Черты личности: {json.dumps(user_data.get('personality_traits', {}), ensure_ascii=False)}"""
 
         if stats_data:
-            # Оптимизируем данные: оставляем только самое важное
-            if "floor_price" in stats_data or "error" in stats_data:
-                # Если это общая статистика коллекции или ошибка
+            if "floor" in stats_data or "error" in stats_data:
+                # Новые ключи: floor, holders, items
+                if "floor" in stats_data and stats_data["floor"] is not None:
+                    stats_data["floor_price"] = f"{float(stats_data['floor']) / 1_000_000_000:.2f} TON"
                 filtered_stats = stats_data
             elif isinstance(stats_data, list):
-                # Если это список NFT в кошельке, берем только названия первых 5 штук
                 filtered_stats = {
                     "total_nfts": len(stats_data),
                     "nfts": [nft.get("metadata", {}).get("name", "Unknown NFT") for nft in stats_data[:5]]
                 }
             else:
-                filtered_stats = stats_data # Если структура неизвестна
+                filtered_stats = stats_data
 
-            # Превращаем в строку только отфильтрованные данные
             context_injection = f"\n\nАКТУАЛЬНЫЕ ДАННЫЕ ИЗ БЛОКЧЕЙНА:\n{json.dumps(filtered_stats, ensure_ascii=False)}"
             DYNAMIC_PROMPT += context_injection
 
@@ -102,8 +121,8 @@ class AIService:
         try:
             completion = await self.client.chat.completions.create(
                 messages=messages,
-                model=self.model_name,
-                temperature=self.chat_params.get("temperature", 0.7),
+                model=current_model,
+                temperature=current_temp,
                 max_tokens=self.chat_params.get("max_tokens", 200),
                 top_p=self.chat_params.get("top_p", 1.0),
                 frequency_penalty=self.chat_params.get("frequency_penalty", 0.0),
@@ -119,16 +138,9 @@ class AIService:
         if not self.client: return None
 
         schema = {
-            "relationship": {
-                "trust_level": "number (0-100)",
-                "annoyance_level": "number (0-100)",
-                "status": "string"
-            },
-            "memory": {
-                "last_topic": "string",
-                "key_insights": ["string"]
-            },
-            "experience": ["string"]
+            "status": "string",
+            "trust_level": "number (0-100)",
+            "last_topic": "string"
         }
 
         system_prompt = f"""Ты - аналитик личности. На основе диалога обнови профиль пользователя.
@@ -139,10 +151,9 @@ class AIService:
 {json.dumps(current_traits, indent=2, ensure_ascii=False) if current_traits else "Нет данных"}
 
 КРИТИЧЕСКИЕ ПРАВИЛА:
-1. 'experience' - это ВСЕГДА массив строк (массив []), а не объект ({{}}).
-2. Любые числовые диапазоны или значения с тире (например, курс валют '90-95', возраст '20-25') ДОЛЖНЫ быть в кавычках как строки. JSON не поддерживает тире в числах.
-3. Не добавляй новые поля, не предусмотренные схемой.
-4. Отвечай только чистым JSON без Markdown-разметки или пояснений."""
+1. Не добавляй новые поля, не предусмотренные схемой.
+2. Никаких массивов 'experience' или 'skills'. Только flat структура.
+3. Отвечай только чистым JSON без Markdown-разметки или пояснений."""
 
         try:
             response = await self.client.chat.completions.create(
@@ -157,6 +168,7 @@ class AIService:
         except Exception as e:
             logger.error(f"Personality update error: {e}")
             return None
+
     async def summarize_history(self, conversation_text: str):
         if not self.client: return conversation_text[:500]
         try:
@@ -172,11 +184,16 @@ class AIService:
             logger.error(f"Summarization error: {e}")
             return conversation_text[:500]
 
-
     async def generate_interjection(self, global_lore: str):
         if not self.client: return None
 
-        system_prompt = self.bot_params.get("description", "")
+        persona_config = await get_personality_config()
+        if persona_config:
+            system_prompt = persona_config.get("system_prompt", HARDCORE_SYSTEM_PROMPT)
+            current_model = persona_config.get("model", self.model_name)
+        else:
+            system_prompt = HARDCORE_SYSTEM_PROMPT
+            current_model = self.model_name
 
         prompt = f"""{system_prompt}
 
@@ -192,7 +209,7 @@ class AIService:
         try:
             completion = await self.client.chat.completions.create(
                 messages=[{"role": "system", "content": prompt}],
-                model=self.model_name,
+                model=current_model,
                 temperature=0.9,
                 max_tokens=200
             )
