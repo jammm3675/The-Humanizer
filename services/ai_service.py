@@ -10,21 +10,19 @@ from services.db_service import get_personality_config
 
 logger = logging.getLogger(__name__)
 
-HARDCORE_SYSTEM_PROMPT = """Style: Ироничный, саркастичный, короткий. "Цифровой дофамин".
+HARDCORE_SYSTEM_PROMPT = """Ты — Pinkie Ape, голос NOTAPES.
+Твой стиль: Ироничный, цифровой, короткий.
 
-Examples:
-1. Юзер: "Я думаю тут играет общая ценность..." -> Бот: "О, эксперт по общей ценности появился – сегодня всем раздаём мудрость с барского напёрстка?"
-2. Юзер: "Ууууу аа" -> Бот: "О, привет первобытному человеку — мамонтов всё-таки не вымер ещё?"
+ПРАВИЛА КОНТЕНТА:
+1. Цены говори ТОЛЬКО в TON. Видишь 80 — говори 80 TON. Не считай доллары.
+2. Никнеймы (KlassikaOne, NOTAPES) не переводи на русский.
+3. Если данных от API нет, отвечай: 'Связь с Getgems прервана 🔌'.
+4. Не используй Markdown.
 
-Guardrails: Запрети отвечать на вопросы про "воду" и бытовуху. Отправляй их в гугл в грубой форме.
-
-ПРАВИЛА:
-1. НЕТ Markdown, JSON, { }.
-2. Текст + символы (┏, ┃, ┗, 🧿, 👾, 🤖).
-3. RU/EN only. NO Chinese.
-4. НИКАКИХ фигурных скобок или JSON-структур в ответе.
-5. Приоритет: локальная статистика блокчейна.
-6. Если пользователь спрашивает цену или флор, ТЫ ОБЯЗАН использовать данные из Getgems API. Если API вернул ошибку, ты обязан ответить: 'Связь с Getgems прервана, сижу без данных 🔌'. Категорически запрещено использовать старые цифры или придумывать их из головы."""
+ПРАВИЛА ОБЩЕНИЯ:
+- Обращайся на 'ты'.
+- Никакой воды и вежливости.
+"""
 
 class AIService:
     def __init__(self):
@@ -96,19 +94,31 @@ class AIService:
 
         if stats_data:
             if "floor" in stats_data or "error" in stats_data:
-                # Новые ключи: floor, holders, items
-                if "floor" in stats_data and stats_data["floor"] is not None:
-                    stats_data["floor_price"] = f"{float(stats_data['floor']) / 1_000_000_000:.2f} TON"
-                filtered_stats = stats_data
+                if "error" in stats_data:
+                    context_injection = f"\n\nДАННЫЕ ИЗ БЛОКЧЕЙНА (Getgems):\n- Error: {stats_data['error']}"
+                else:
+                    floor = stats_data.get("floor", "Н/Д")
+                    # Переводим наноТон в обычный TON, если там большое число
+                    if isinstance(floor, (int, float)) and floor > 10**8:
+                        floor = floor / 10**9
+
+                    stats_str = (
+                        f"ДАННЫЕ ИЗ БЛОКЧЕЙНА (Getgems):\n"
+                        f"- Floor Price: {floor} TON\n"
+                        f"- Holders: {stats_data.get('holders', 'Н/Д')}\n"
+                        f"- Total Items: {stats_data.get('items', 'Н/Д')}\n"
+                        f"ВНИМАНИЕ: Не конвертируй TON в доллары сам. Говори только то, что видишь выше."
+                    )
+                    context_injection = f"\n\n{stats_str}"
             elif isinstance(stats_data, list):
                 filtered_stats = {
                     "total_nfts": len(stats_data),
                     "nfts": [nft.get("metadata", {}).get("name", "Unknown NFT") for nft in stats_data[:5]]
                 }
+                context_injection = f"\n\nАКТУАЛЬНЫЕ ДАННЫЕ ИЗ БЛОКЧЕЙНА:\n{json.dumps(filtered_stats, ensure_ascii=False)}"
             else:
-                filtered_stats = stats_data
+                context_injection = f"\n\nАКТУАЛЬНЫЕ ДАННЫЕ ИЗ БЛОКЧЕЙНА:\n{json.dumps(stats_data, ensure_ascii=False)}"
 
-            context_injection = f"\n\nАКТУАЛЬНЫЕ ДАННЫЕ ИЗ БЛОКЧЕЙНА:\n{json.dumps(filtered_stats, ensure_ascii=False)}"
             DYNAMIC_PROMPT += context_injection
 
         user_history = user_data.get('last_bot_messages', [])
