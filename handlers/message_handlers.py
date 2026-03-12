@@ -32,9 +32,17 @@ async def handle_set_lore(message: types.Message):
     await update_global_lore(new_lore)
     await message.reply("✅ глобальный лор обновлен.")
 
+@router.message(Command("link"))
 @router.message(F.text.regexp(r"^(EQ|UQ)[a-zA-Z0-9_-]{46}$"))
 async def link_wallet(message: types.Message):
-    wallet = message.text.strip()
+    if message.text.startswith("/link"):
+        wallet = message.text.replace("/link", "").strip()
+    else:
+        wallet = message.text.strip()
+
+    if not wallet:
+        await message.reply("напиши адрес кошелька после /link")
+        return
     result = await getgems_service.check_user_nft(wallet)
 
     if result.get("is_holder"):
@@ -119,7 +127,7 @@ async def process_message(message: types.Message):
     if not response_text: response_text = "..."
 
     # Update history and counters
-    should_update_personality, should_summarize, _ = await increment_counters(message.from_user.id)
+    should_update_personality, should_summarize = await increment_counters(message.from_user.id)
     last_bot_messages = user.get("last_bot_messages", [])
     if not isinstance(last_bot_messages, list): last_bot_messages = []
 

@@ -76,9 +76,11 @@ class AIService:
 
         # Check for wallet
         wallet_match = re.search(r'(UQ|EQ)[a-zA-Z0-9_-]{46}', user_message)
-        if wallet_match:
-            address = wallet_match.group(0)
+        address = wallet_match.group(0) if wallet_match else user_data.get('ton_wallet')
+
+        if address:
             res = await getgems_service.check_user_nft(address)
+            wallet_info = f"\nINFO ПО КОШЕЛЬКУ {address}:\nHold status: {res.get('is_holder')}\nCount: {res.get('count')}\nAssets: {res.get('items')}"
             wallet_info = f"\nINFO ПО КОШЕЛЬКУ {address}:\nHold status: {res.get('is_holder')}\nCount: {res.get('count')}\nAssets: {res.get('items')}"
 
         # Check for keywords
@@ -93,13 +95,16 @@ class AIService:
             else:
                 stats_str = "STATS: ERROR 🔌"
 
-            whales = await getgems_service.get_top_owners(limit=3)
+            whales = await getgems_service.get_top_owners(limit=5)
             if whales:
                 whale_str = "WHALES (Top Owners): " + ", ".join([f"{w['address'][:6]} ({w['count']} nfts)" for w in whales])
 
-            sales = await getgems_service.get_last_sales(limit=2)
-            if sales:
-                sales_str = "LAST SALES: " + ", ".join([f"{s['nft_name']} for {self._format_ton(s['price'])} TON" for s in sales])
+            sales = await getgems_service.get_last_sales(limit=5)
+            valid_sales = [s for s in sales if s.get('price')]
+            if valid_sales:
+                sales_str = "LAST SALES: " + ", ".join([f"{s['nft_name']} for {self._format_ton(s['price'])} TON" for s in valid_sales])
+            else:
+                sales_str = "LAST SALES: пока нет инфы о свежих сделках"
 
         name = user_data.get('first_name', 'Анон')
         traits = user_data.get('personality_traits', {})
