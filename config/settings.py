@@ -1,5 +1,4 @@
 import os
-import yaml
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -18,20 +17,11 @@ class Config:
 
     def __init__(self, model_config_name="default"):
         self.model_config_name = model_config_name
-        self.models_config = self._load_models_config()
-        self.current_model = self.models_config.get("models", {}).get(model_config_name, {})
-
-    def _load_models_config(self):
-        config_path = os.path.join(os.path.dirname(__file__), "models.yml")
-        if os.path.exists(config_path):
-            with open(config_path, "r", encoding="utf-8") as f:
-                return yaml.safe_load(f)
-        return {}
 
     def get_chat_model_params(self):
-        return self.current_model.get("chat_model", {})
+        return {}
 
     def get_chatbot_params(self):
-        return self.current_model.get("chatbot", {})
+        return {}
 
 config = Config(os.getenv("MODEL_CONFIG_NAME", "default"))

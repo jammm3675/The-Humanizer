@@ -15,10 +15,6 @@ from services.getgems_service import getgems_service
 logger = logging.getLogger(__name__)
 router = Router()
 
-@router.message(F.voice)
-async def handle_voice(message: types.Message):
-    response_text = "я не слушаю шум. пиши буквами, если эволюционировал."
-    await message.reply(response_text)
 
 @router.message(Command("setlore"))
 async def handle_set_lore(message: types.Message):
@@ -32,29 +28,6 @@ async def handle_set_lore(message: types.Message):
     await update_global_lore(new_lore)
     await message.reply("✅ глобальный лор обновлен.")
 
-@router.message(Command("link"))
-@router.message(F.text.regexp(r"^(EQ|UQ)[a-zA-Z0-9_-]{46}$"))
-async def link_wallet(message: types.Message):
-    if message.text.startswith("/link"):
-        wallet = message.text.replace("/link", "").strip()
-    else:
-        wallet = message.text.strip()
-
-    if not wallet:
-        await message.reply("напиши адрес кошелька после /link")
-        return
-    result = await getgems_service.check_user_nft(wallet)
-
-    if result.get("is_holder"):
-        traits = {"status": "Holder", "trust_level": 100, "linked_at": str(datetime.now())}
-        await update_user(message.from_user.id, {
-            "ton_wallet": wallet,
-            "personality_traits": traits
-        })
-        response = f"база кормится! вижу твои nft. теперь ты официально в семье, {message.from_user.first_name}"
-        await message.reply(response.lower())
-    else:
-        await message.reply("кошелек пустой, бро. минти или покупай на getgems, если хочешь быть в теме")
 
 @router.message(F.chat.type.in_({"private"}))
 async def handle_private_message(message: types.Message):
@@ -87,33 +60,6 @@ async def process_message(message: types.Message):
             message.from_user.username or message.from_user.first_name,
             message.from_user.first_name
         )
-
-    # Holder Re-verification (once a day)
-    if user.get("ton_wallet"):
-        last_check = user.get("last_stats_check")
-        is_stale = True
-        if last_check:
-            try:
-                if isinstance(last_check, str):
-                    last_check_dt = datetime.fromisoformat(last_check.replace("Z", "+00:00"))
-                else:
-                    last_check_dt = last_check
-                is_stale = (datetime.now().astimezone() - last_check_dt.astimezone()).days >= 1
-            except Exception as e:
-                logger.error(f"Date parse error: {e}")
-
-        if is_stale:
-            res = await getgems_service.check_user_nft(user["ton_wallet"])
-            new_traits = user.get("personality_traits", {})
-            if not res.get("is_holder") and new_traits.get("status") == "Holder":
-                new_traits["status"] = "Paper Hands"
-                await update_user(message.from_user.id, {
-                    "personality_traits": new_traits,
-                    "last_stats_check": str(datetime.now())
-                })
-                user["personality_traits"] = new_traits
-            elif res.get("is_holder"):
-                await update_user(message.from_user.id, {"last_stats_check": str(datetime.now())})
 
     await update_conversation_history(message.from_user.id, f"User: {message.text}")
 
