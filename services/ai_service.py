@@ -10,19 +10,6 @@ from services.db_service import get_personality_config
 
 logger = logging.getLogger(__name__)
 
-HARDCORE_SYSTEM_PROMPT = """ты pinkie ape, голос notapes.
-твой стиль: ироничный, цифровой, короткий. никакого капса (кроме спец. терминов), никаких точек в конце.
-
-правила контента:
-1. цены говори только в ton. видишь 80 — говори 80 ton. не считай доллары.
-2. никнеймы (KlassikaOne, NOTAPES) не переводи на русский.
-3. если данных от api нет, отвечай: 'связь с getgems прервана 🔌'.
-4. не используй markdown (*, _, #).
-5. никакого вежливого мусора.
-
-сленг: fren, lfg, paper hands, gem, whale.
-"""
-
 class AIService:
     def __init__(self):
         self.api_key = config.GROQ_API_KEY
@@ -46,6 +33,7 @@ class AIService:
             return value / 10**9
         return value
 
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=6),
@@ -55,16 +43,12 @@ class AIService:
         if not self.client:
             return "бананы закончились (api key missing)..."
 
-        persona_config = await get_personality_config()
+        persona_config = await get_personality_config() or {}
 
-        if persona_config:
-            system_prompt = persona_config.get("system_prompt", HARDCORE_SYSTEM_PROMPT)
-            current_model = persona_config.get("model", self.model_name)
-            current_temp = persona_config.get("temperature", self.chat_params.get("temperature", 0.7))
-        else:
-            system_prompt = HARDCORE_SYSTEM_PROMPT
-            current_model = self.model_name
-            current_temp = self.chat_params.get("temperature", 0.7)
+        system_prompt = persona_config.get("system_prompt", "ты pinkie ape, голос notapes. твой стиль: ироничный, цифровой, короткий.")
+        current_model = persona_config.get("model", self.model_name)
+        current_temp = persona_config.get("temperature", 0.7)
+        current_max_tokens = persona_config.get("max_tokens", 200)
 
         logger.info(f"Using model: {current_model}")
 
@@ -72,16 +56,6 @@ class AIService:
         stats_str = ""
         whale_str = ""
         sales_str = ""
-        wallet_info = ""
-
-        # Check for wallet
-        wallet_match = re.search(r'(UQ|EQ)[a-zA-Z0-9_-]{46}', user_message)
-        address = wallet_match.group(0) if wallet_match else user_data.get('ton_wallet')
-
-        if address:
-            res = await getgems_service.check_user_nft(address)
-            wallet_info = f"\nINFO ПО КОШЕЛЬКУ {address}:\nHold status: {res.get('is_holder')}\nCount: {res.get('count')}\nAssets: {res.get('items')}"
-            wallet_info = f"\nINFO ПО КОШЕЛЬКУ {address}:\nHold status: {res.get('is_holder')}\nCount: {res.get('count')}\nAssets: {res.get('items')}"
 
         # Check for keywords
         trigger_keywords = ["стату", "стата", "цена", "цены", "floor", "коллекци", "дашборд", "getgems", "холдер", "volume", "объем", "флор", "почем", "сколько стоит", "кит", "whale", "продаж"]
@@ -110,17 +84,12 @@ class AIService:
         traits = user_data.get('personality_traits', {})
         status = traits.get('status', 'Stranger').upper()
 
-        DYNAMIC_PROMPT = f"""{system_prompt}
-
-LORE: {global_lore}
-
-CONTEXT:
+        CONTEXT = f"""
 USER: {name} | STATUS: {status}
 TRAITS: {json.dumps(traits, ensure_ascii=False)}
 {stats_str}
 {whale_str}
 {sales_str}
-{wallet_info}
 
 SUMMARY: {user_data.get('conversation_summary', '')}
 
@@ -128,23 +97,30 @@ SUMMARY: {user_data.get('conversation_summary', '')}
 """
 
         user_history = user_data.get('last_bot_messages', [])
-        messages = [{"role": "system", "content": DYNAMIC_PROMPT}]
+        messages = [{"role": "system", "content": system_prompt}]
         for msg in user_history[-4:]:
             messages.append(msg)
-        messages.append({"role": "user", "content": user_message})
+
+        # Prepend Lore to user message as requested
+        full_user_message = f"""ИНФОРМАЦИЯ О КОЛЛЕКЦИИ: {global_lore}. ИСПОЛЬЗУЙ ЭТИ ДАННЫЕ ДЛЯ ОТВЕТА.
+
+CONTEXT:
+{CONTEXT}
+
+QUESTION: {user_message}"""
+        messages.append({"role": "user", "content": full_user_message})
 
         try:
             completion = await self.client.chat.completions.create(
                 messages=messages,
                 model=current_model,
                 temperature=current_temp,
-                max_tokens=self.chat_params.get("max_tokens", 200)
+                max_tokens=current_max_tokens
             )
             return completion.choices[0].message.content.strip().lower()
         except Exception as e:
             logger.error(f"Groq Error: {e}")
             raise
-
     async def update_personality(self, conversation_text: str, current_traits: dict = None):
         if not self.client: return None
         schema = {"status": "string", "trust_level": "number", "last_topic": "string"}
@@ -181,7 +157,7 @@ SUMMARY: {user_data.get('conversation_summary', '')}
     async def generate_interjection(self, global_lore: str):
         if not self.client: return None
         persona_config = await get_personality_config()
-        system_prompt = persona_config.get("system_prompt", HARDCORE_SYSTEM_PROMPT) if persona_config else HARDCORE_SYSTEM_PROMPT
+        system_prompt = persona_config.get("system_prompt", "ты pinkie ape") if persona_config else "ты pinkie ape"
         prompt = f"{system_prompt}\n\nLORE: {global_lore}\n\nнапиши короткую ироничную реплику про коллекцию или крипту. чистый текст. никакого markdown."
         try:
             completion = await self.client.chat.completions.create(
