@@ -10,18 +10,17 @@ from services.db_service import get_personality_config
 
 logger = logging.getLogger(__name__)
 
-HARDCORE_SYSTEM_PROMPT = """Ты — Pinkie Ape, голос NOTAPES.
-Твой стиль: Ироничный, цифровой, короткий.
+HARDCORE_SYSTEM_PROMPT = """ты pinkie ape, голос notapes.
+твой стиль: ироничный, цифровой, короткий. никакого капса (кроме спец. терминов), никаких точек в конце.
 
-ПРАВИЛА КОНТЕНТА:
-1. Цены говори ТОЛЬКО в TON. Видишь 80 — говори 80 TON. Не считай доллары.
-2. Никнеймы (KlassikaOne, NOTAPES) не переводи на русский.
-3. Если данных от API нет, отвечай: 'Связь с Getgems прервана 🔌'.
-4. Не используй Markdown.
+правила контента:
+1. цены говори только в ton. видишь 80 — говори 80 ton. не считай доллары.
+2. никнеймы (KlassikaOne, NOTAPES) не переводи на русский.
+3. если данных от api нет, отвечай: 'связь с getgems прервана 🔌'.
+4. не используй markdown (*, _, #).
+5. никакого вежливого мусора.
 
-ПРАВИЛА ОБЩЕНИЯ:
-- Обращайся на 'ты'.
-- Никакой воды и вежливости.
+сленг: fren, lfg, paper hands, gem, whale.
 """
 
 class AIService:
@@ -42,6 +41,11 @@ class AIService:
             self._client = AsyncGroq(api_key=self.api_key)
         return self._client
 
+    def _format_ton(self, value):
+        if isinstance(value, (int, float)) and value > 10**8:
+            return value / 10**9
+        return value
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=6),
@@ -49,9 +53,8 @@ class AIService:
     )
     async def generate_response(self, user_message: str, user_data: dict, global_lore: str):
         if not self.client:
-            return "Бананы закончились (API Key missing)..."
+            return "бананы закончились (api key missing)..."
 
-        # Пытаемся получить настройки из базы
         persona_config = await get_personality_config()
 
         if persona_config:
@@ -65,64 +68,61 @@ class AIService:
 
         logger.info(f"Using model: {current_model}")
 
-        stats_data = None
+        # Fetch extra context if needed
+        stats_str = ""
+        whale_str = ""
+        sales_str = ""
+        wallet_info = ""
 
-        # 1. ПРОВЕРКА НА АДРЕС КОШЕЛЬКА
+        # Check for wallet
         wallet_match = re.search(r'(UQ|EQ)[a-zA-Z0-9_-]{46}', user_message)
         if wallet_match:
             address = wallet_match.group(0)
-            logger.info(f"Detected wallet address: {address}")
-            stats_data = await getgems_service.get_wallet_nfts(address)
+            res = await getgems_service.check_user_nft(address)
+            wallet_info = f"\nINFO ПО КОШЕЛЬКУ {address}:\nHold status: {res.get('is_holder')}\nCount: {res.get('count')}\nAssets: {res.get('items')}"
 
-        # 2. ПРОВЕРКА НА ОБЩУЮ СТАТИСТИКУ
-        elif any(kw in user_message.lower() for kw in ["стату", "стата", "цена", "цены", "floor", "коллекци", "дашборд", "getgems", "холдер", "volume", "объем", "флор", "почем", "сколько стоит"]):
-            try:
-                stats_data = await getgems_service.get_collection_stats()
-            except Exception as e:
-                logger.error(f"TON Stats Error: {e}")
+        # Check for keywords
+        trigger_keywords = ["стату", "стата", "цена", "цены", "floor", "коллекци", "дашборд", "getgems", "холдер", "volume", "объем", "флор", "почем", "сколько стоит", "кит", "whale", "продаж"]
+
+        if any(kw in user_message.lower() for kw in trigger_keywords):
+            stats_data = await getgems_service.get_collection_stats()
+            if "error" not in stats_data:
+                floor = self._format_ton(stats_data.get("floor"))
+                volume = self._format_ton(stats_data.get("volume"))
+                stats_str = f"STATS: Floor {floor} TON, Holders {stats_data.get('holders')}, Volume {volume} TON."
+            else:
+                stats_str = "STATS: ERROR 🔌"
+
+            whales = await getgems_service.get_top_owners(limit=3)
+            if whales:
+                whale_str = "WHALES (Top Owners): " + ", ".join([f"{w['address'][:6]} ({w['count']} nfts)" for w in whales])
+
+            sales = await getgems_service.get_last_sales(limit=2)
+            if sales:
+                sales_str = "LAST SALES: " + ", ".join([f"{s['nft_name']} for {self._format_ton(s['price'])} TON" for s in sales])
 
         name = user_data.get('first_name', 'Анон')
+        traits = user_data.get('personality_traits', {})
+        status = traits.get('status', 'Stranger').upper()
 
         DYNAMIC_PROMPT = f"""{system_prompt}
 
-БАЗА ЗНАНИЙ (Lore):
-{global_lore}
+LORE: {global_lore}
 
-ТЕКУЩИЙ КОНТЕКСТ:
-Имя пользователя: {name}
-Черты личности: {json.dumps(user_data.get('personality_traits', {}), ensure_ascii=False)}"""
+CONTEXT:
+USER: {name} | STATUS: {status}
+TRAITS: {json.dumps(traits, ensure_ascii=False)}
+{stats_str}
+{whale_str}
+{sales_str}
+{wallet_info}
 
-        if stats_data:
-            if "floor" in stats_data or "error" in stats_data:
-                if "error" in stats_data:
-                    context_injection = f"\n\nДАННЫЕ ИЗ БЛОКЧЕЙНА (Getgems):\n- Error: {stats_data['error']}"
-                else:
-                    floor = stats_data.get("floor", "Н/Д")
-                    # Переводим наноТон в обычный TON, если там большое число
-                    if isinstance(floor, (int, float)) and floor > 10**8:
-                        floor = floor / 10**9
+SUMMARY: {user_data.get('conversation_summary', '')}
 
-                    stats_str = (
-                        f"ДАННЫЕ ИЗ БЛОКЧЕЙНА (Getgems):\n"
-                        f"- Floor Price: {floor} TON\n"
-                        f"- Holders: {stats_data.get('holders', 'Н/Д')}\n"
-                        f"- Total Items: {stats_data.get('items', 'Н/Д')}\n"
-                        f"ВНИМАНИЕ: Не конвертируй TON в доллары сам. Говори только то, что видишь выше."
-                    )
-                    context_injection = f"\n\n{stats_str}"
-            elif isinstance(stats_data, list):
-                filtered_stats = {
-                    "total_nfts": len(stats_data),
-                    "nfts": [nft.get("metadata", {}).get("name", "Unknown NFT") for nft in stats_data[:5]]
-                }
-                context_injection = f"\n\nАКТУАЛЬНЫЕ ДАННЫЕ ИЗ БЛОКЧЕЙНА:\n{json.dumps(filtered_stats, ensure_ascii=False)}"
-            else:
-                context_injection = f"\n\nАКТУАЛЬНЫЕ ДАННЫЕ ИЗ БЛОКЧЕЙНА:\n{json.dumps(stats_data, ensure_ascii=False)}"
-
-            DYNAMIC_PROMPT += context_injection
+ВНИМАНИЕ: Не конвертируй TON в доллары. Пиши коротко. Никакого Markdown.
+"""
 
         user_history = user_data.get('last_bot_messages', [])
-
         messages = [{"role": "system", "content": DYNAMIC_PROMPT}]
         for msg in user_history[-4:]:
             messages.append(msg)
@@ -133,50 +133,29 @@ class AIService:
                 messages=messages,
                 model=current_model,
                 temperature=current_temp,
-                max_tokens=self.chat_params.get("max_tokens", 200),
-                top_p=self.chat_params.get("top_p", 1.0),
-                frequency_penalty=self.chat_params.get("frequency_penalty", 0.0),
-                presence_penalty=self.chat_params.get("presence_penalty", 0.0),
-                stop=self.chat_params.get("stop")
+                max_tokens=self.chat_params.get("max_tokens", 200)
             )
-            return completion.choices[0].message.content.strip()
+            return completion.choices[0].message.content.strip().lower()
         except Exception as e:
             logger.error(f"Groq Error: {e}")
             raise
 
     async def update_personality(self, conversation_text: str, current_traits: dict = None):
         if not self.client: return None
-
-        schema = {
-            "status": "string",
-            "trust_level": "number (0-100)",
-            "last_topic": "string"
-        }
-
-        system_prompt = f"""Ты - аналитик личности. На основе диалога обнови профиль пользователя.
-Верни ТОЛЬКО валидный JSON, строго соответствующий следующей схеме:
-{json.dumps(schema, indent=2, ensure_ascii=False)}
-
-ТЕКУЩИЙ ПРОФИЛЬ:
-{json.dumps(current_traits, indent=2, ensure_ascii=False) if current_traits else "Нет данных"}
-
-КРИТИЧЕСКИЕ ПРАВИЛА:
-1. Не добавляй новые поля, не предусмотренные схемой.
-2. Никаких массивов 'experience' или 'skills'. Только flat структура.
-3. Отвечай только чистым JSON без Markdown-разметки или пояснений."""
-
+        schema = {"status": "string", "trust_level": "number", "last_topic": "string"}
+        system_prompt = f"ты аналитик личности. обнови профиль пользователя. верни только json.\nсхема: {json.dumps(schema)}"
         try:
             response = await self.client.chat.completions.create(
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"Диалог для анализа:\n{conversation_text}"}
+                    {"role": "user", "content": f"диалог: {conversation_text}\nтекущий: {json.dumps(current_traits)}"}
                 ],
                 model="llama-3.1-8b-instant",
                 response_format={"type": "json_object"}
             )
             return json.loads(response.choices[0].message.content)
         except Exception as e:
-            logger.error(f"Personality update error: {e}")
+            logger.error(f"Personality error: {e}")
             return None
 
     async def summarize_history(self, conversation_text: str):
@@ -184,7 +163,7 @@ class AIService:
         try:
             response = await self.client.chat.completions.create(
                 messages=[
-                    {"role": "system", "content": "Сверни диалог в резюме (макс 500 знаков)."},
+                    {"role": "system", "content": "сверни диалог в резюме (макс 500 знаков)."},
                     {"role": "user", "content": conversation_text}
                 ],
                 model="llama-3.1-8b-instant",
@@ -196,36 +175,19 @@ class AIService:
 
     async def generate_interjection(self, global_lore: str):
         if not self.client: return None
-
         persona_config = await get_personality_config()
-        if persona_config:
-            system_prompt = persona_config.get("system_prompt", HARDCORE_SYSTEM_PROMPT)
-            current_model = persona_config.get("model", self.model_name)
-        else:
-            system_prompt = HARDCORE_SYSTEM_PROMPT
-            current_model = self.model_name
-
-        prompt = f"""{system_prompt}
-
-БАЗА ЗНАНИЙ (Lore):
-{global_lore}
-
-ЗАДАЧА:
-Напиши короткую ироничную реплику, шутку или мем-фразу про коллекцию NOTAPES или крипту в целом.
-Это должно быть внезапное сообщение в чат.
-НИКАКОГО Markdown. Используй чистый текст и цифровые символы (┏, ┃, ┗).
-Пиши как Pinkie Ape: дерзко, цифровой вайб, коротко, без иероглифов."""
-
+        system_prompt = persona_config.get("system_prompt", HARDCORE_SYSTEM_PROMPT) if persona_config else HARDCORE_SYSTEM_PROMPT
+        prompt = f"{system_prompt}\n\nLORE: {global_lore}\n\nнапиши короткую ироничную реплику про коллекцию или крипту. чистый текст. никакого markdown."
         try:
             completion = await self.client.chat.completions.create(
                 messages=[{"role": "system", "content": prompt}],
-                model=current_model,
+                model=self.model_name,
                 temperature=0.9,
-                max_tokens=200
+                max_tokens=100
             )
-            return completion.choices[0].message.content.strip()
+            return completion.choices[0].message.content.strip().lower()
         except Exception as e:
-            logger.error(f"Interjection generation error: {e}")
+            logger.error(f"Interjection error: {e}")
             return None
 
 ai_service = AIService()
