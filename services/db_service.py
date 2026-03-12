@@ -78,8 +78,7 @@ async def create_user(telegram_id: int, username: str, first_name: str):
             "last_topic": "None"
         },
         "conversation_summary": "",
-        "message_count": 0,
-        "voice_count": 0
+        "message_count": 0
     }
     if not supabase: return None
     try:
@@ -100,16 +99,15 @@ async def update_user(telegram_id: int, updates: dict):
 
 async def increment_counters(telegram_id: int):
     user = await get_user(telegram_id)
-    if not user: return False, False, False
+    if not user: return False, False
 
     current_msg_count = user.get("message_count", 0)
     new_msg_count = current_msg_count + 1
-    new_voice_count = (user.get("voice_count", 0) + 1) % 7
 
-    updates = {"message_count": new_msg_count, "voice_count": new_voice_count}
+    updates = {"message_count": new_msg_count}
     await update_user(telegram_id, updates)
 
-    return (new_msg_count % 15 == 0), (new_msg_count % 40 == 0), (new_voice_count == 0)
+    return (new_msg_count % 15 == 0), (new_msg_count % 40 == 0)
 
 async def update_conversation_history(telegram_id: int, new_message: str):
     user = await get_user(telegram_id)

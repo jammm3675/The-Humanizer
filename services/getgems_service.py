@@ -28,11 +28,15 @@ class GetgemsService:
                 res = r_stats.json().get("response", {})
 
                 # floorPrice, holders, itemsCount, totalVolumeSold
+                volume = res.get("totalVolumeSold")
+                if isinstance(volume, (int, float)):
+                    volume = round(volume, 2)
+
                 return {
                     "floor": res.get("floorPrice"),
                     "holders": res.get("holders"),
                     "items": res.get("itemsCount"),
-                    "volume": res.get("totalVolumeSold")
+                    "volume": volume
                 }
         except Exception as e:
             logger.error(f"Error fetching Getgems stats: {e}")
