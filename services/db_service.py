@@ -1,91 +1,68 @@
-import os
+# -*- coding: utf-8 -*-
 import logging
 import time
 import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from supabase import create_client, Client
-from dotenv import load_dotenv
+from config.settings import config
 
-load_dotenv()
 logger = logging.getLogger(__name__)
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-
 try:
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    supabase: Client = create_client(config.SUPABASE_URL, config.SUPABASE_KEY)
 except Exception as e:
     logger.error(f"Failed to initialize Supabase client: {e}")
     supabase = None
 
-# Simple time-based cache for global config
+# Simple config cache
 _config_cache: Dict[str, Any] = {}
 _config_cache_timestamp: float = 0
-CACHE_TTL = 300  # 5 minutes
+CACHE_TTL = 300
 
 async def get_cached_settings() -> Dict[str, Any]:
     global _config_cache, _config_cache_timestamp
     now = time.time()
-
     if _config_cache and (now - _config_cache_timestamp < CACHE_TTL):
         return _config_cache
-
-    if not supabase:
-        return {}
-
+    if not supabase: return {}
     try:
         response = supabase.table("global_config").select("*").execute()
         if response.data:
-            new_cache = {}
-            for row in response.data:
-                key = row['key']
-                content = row['content']
-                # Try to parse content if it looks like JSON
-                try:
-                    if content.startswith('{') or content.startswith('['):
-                        new_cache[key] = json.loads(content)
-                    else:
-                        new_cache[key] = content
-                except:
-                    new_cache[key] = content
-
+            new_cache = {row['key']: row['content'] for row in response.data}
+            # Attempt to parse JSON content
+            for k, v in new_cache.items():
+                if isinstance(v, str) and (v.startswith('{') or v.startswith('[')):
+                    try: new_cache[k] = json.loads(v)
+                    except: pass
             _config_cache = new_cache
             _config_cache_timestamp = now
             return _config_cache
     except Exception as e:
         logger.error(f"Error fetching global config: {e}")
-
     return _config_cache or {}
 
 async def get_user(telegram_id: int):
     if not supabase: return None
     try:
         response = supabase.table("users").select("*").eq("telegram_id", telegram_id).execute()
-        if response.data:
-            return response.data[0]
+        return response.data[0] if response.data else None
     except Exception as e:
         logger.error(f"Error fetching user {telegram_id}: {e}")
     return None
 
-async def create_user(telegram_id: int, username: str, first_name: str):
+async def upsert_user(telegram_id: int, username: str, first_name: str):
+    if not supabase: return None
     data = {
         "telegram_id": telegram_id,
         "username": username,
         "first_name": first_name,
-        "personality_traits": {
-            "status": "Stranger",
-            "trust_level": 30,
-            "last_topic": "None"
-        },
-        "conversation_summary": "",
-        "message_count": 0
+        "updated_at": "now()"
     }
-    if not supabase: return None
     try:
-        response = supabase.table("users").insert(data).execute()
+        response = supabase.table("users").upsert(data, on_conflict="telegram_id").execute()
         return response.data[0] if response.data else None
     except Exception as e:
-        logger.error(f"Error creating user: {e}")
+        logger.error(f"Error upserting user: {e}")
         return None
 
 async def update_user(telegram_id: int, updates: dict):
@@ -97,70 +74,45 @@ async def update_user(telegram_id: int, updates: dict):
         logger.error(f"Error updating user {telegram_id}: {e}")
     return None
 
-async def increment_counters(telegram_id: int):
-    user = await get_user(telegram_id)
-    if not user: return False, False
-
-    current_msg_count = user.get("message_count", 0)
-    new_msg_count = current_msg_count + 1
-
-    updates = {"message_count": new_msg_count}
-    await update_user(telegram_id, updates)
-
-    return (new_msg_count % 15 == 0), (new_msg_count % 40 == 0)
-
-async def update_conversation_history(telegram_id: int, new_message: str):
-    user = await get_user(telegram_id)
-    if not user:
-        return
-
-    current_summary = user.get("conversation_summary") or ""
-    updated_summary = (current_summary + "\n" + new_message).strip()
-
-    if len(updated_summary) > 5000:
-        updated_summary = updated_summary[-5000:]
-
-    await update_user(telegram_id, {"conversation_summary": updated_summary})
-
-async def get_global_lore():
-    """Получает актуальный лор из кэшированных настроек."""
-    settings = await get_cached_settings()
-    # Try collection_lore first, fallback to notapes_lore (old key)
-    return settings.get("collection_lore") or settings.get("notapes_lore") or ""
-
-async def update_global_lore(new_content: str):
+async def register_chat(chat_id: int, chat_type: str, title: str = None):
     if not supabase: return
     try:
-        # Update both keys for compatibility if needed, but primary is collection_lore
-        supabase.table("global_config").upsert({"key": "collection_lore", "content": new_content}).execute()
-        # Invalidate cache
-        global _config_cache_timestamp
-        _config_cache_timestamp = 0
-    except Exception as e:
-        logger.error(f"Error updating lore: {e}")
-
-async def get_personality_config():
-    """Забирает настройки личности из кэшированных настроек."""
-    settings = await get_cached_settings()
-    # Key is now pinkie_persona according to the new spec, fallback to bot_personality
-    persona = settings.get("pinkie_persona") or settings.get("bot_personality")
-
-    if isinstance(persona, str):
-        return {"system_prompt": persona}
-    return persona
-
-async def register_chat(chat_id: int, chat_type: str):
-    if not supabase: return
-    try:
-        supabase.table("chats").upsert({"chat_id": chat_id, "chat_type": chat_type}).execute()
+        supabase.table("chats").upsert({
+            "chat_id": chat_id,
+            "chat_type": chat_type,
+            "title": title
+        }, on_conflict="chat_id").execute()
     except Exception as e:
         logger.error(f"Error registering chat {chat_id}: {e}")
 
-async def get_active_groups():
+async def get_active_chats() -> List[int]:
     if not supabase: return []
     try:
-        response = supabase.table("chats").select("chat_id").in_("chat_type", ["group", "supergroup"]).execute()
-        return [item['chat_id'] for item in response.data] if response.data else []
+        response = supabase.table("chats").select("chat_id").execute()
+        return [row['chat_id'] for row in response.data] if response.data else []
     except Exception as e:
-        logger.error(f"Error fetching active groups: {e}")
+        logger.error(f"Error fetching chats: {e}")
     return []
+
+async def save_message(telegram_id: int, chat_id: int, role: str, content: str):
+    if not supabase: return
+    try:
+        supabase.table("messages").insert({
+            "telegram_id": telegram_id,
+            "chat_id": chat_id,
+            "role": role,
+            "content": content
+        }).execute()
+    except Exception as e:
+        logger.error(f"Error saving message: {e}")
+
+async def save_summary(telegram_id: int, summary_text: str, traits: dict):
+    if not supabase: return
+    try:
+        supabase.table("summaries").insert({
+            "telegram_id": telegram_id,
+            "summary_text": summary_text,
+            "traits_snapshot": traits
+        }).execute()
+    except Exception as e:
+        logger.error(f"Error saving summary: {e}")
