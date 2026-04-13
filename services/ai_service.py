@@ -28,7 +28,8 @@ class AIService:
             raise
 
     async def summarize(self, history: str):
-        prompt = f"Summarize relationship in 1-2 sentences based on this history:\\n{history}"\n        messages = [{"role": "system", "content": "Ты аналитик памяти."}, {"role": "user", "content": prompt}]
+        prompt = f"Summarize relationship in 1-2 sentences based on this history:\\n{history}"
+        messages = [{"role": "system", "content": "Ты аналитик памяти."}, {"role": "user", "content": prompt}]
         return await self.call_llm(messages, model="llama-3.1-8b-instant")
 
     async def update_traits(self, history: str, current_traits: dict):
