@@ -1,12 +1,11 @@
+# -*- coding: utf-8 -*-
+# General utilities and constants
 KEYWORDS = ["обезьяна", "ape", "бананы", "floor price", "когда минт", "wen lambo", "lfg", "moon", "когда листинг", "банан", "стату", "цены", "кто купил", "анекдот", "шутка", "рассмеши", "joke", "getgems", "холдер", "volume", "объем"]
 
 def calculate_trigger_chance(text: str) -> float:
-    if not text:
-        return 0.0
+    # Logic moved to handlers but kept for compatibility if needed
+    if not text: return 0.0
     text_lower = text.lower()
-    found_keywords = [kw for kw in KEYWORDS if kw in text_lower]
-    if not found_keywords:
-        return 0.0
-
-    # Return exactly 15% as per user request
-    return 0.15
+    if any(kw in text_lower for kw in KEYWORDS):
+        return 0.15
+    return 0.0
