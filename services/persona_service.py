@@ -34,4 +34,38 @@ class PersonaService:
 
         return default_persona
 
+    def enforce_persona(self, text: str) -> str:
+        if not text:
+            return text
+
+        # Удаляем markdown
+        for char in ["*", "_", "#", "`"]:
+            text = text.replace(char, "")
+
+        # Ограничиваем длину
+        sentences = text.split(".")
+        text = ".".join(sentences[:2]).strip()
+
+        # Убираем "как AI"
+        banned_phrases = [
+            "как ai", "я могу помочь", "я являюсь", "как модель", "как ассистент"
+        ]
+        for phrase in banned_phrases:
+            text = text.replace(phrase, "")
+
+        # Добавляем характер (лёгкая дерзость)
+        if not any(x in text.lower() for x in ["хм", "ну", "ладно", "так"]):
+            text = "хм. " + text
+
+        return text.strip()
+
+    def adapt_personality(self, traits: dict) -> str:
+        trust = traits.get("trust_level", 30)
+
+        if trust > 80:
+            return "casual, friendly, joking"
+        elif trust < 20:
+            return "cold, distant, short"
+        return "neutral, slightly ironic"
+
 persona_service = PersonaService()
