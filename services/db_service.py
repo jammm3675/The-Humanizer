@@ -116,3 +116,12 @@ async def save_summary(telegram_id: int, summary_text: str, traits: dict):
         }).execute()
     except Exception as e:
         logger.error(f"Error saving summary: {e}")
+
+async def get_last_chat_messages(chat_id: int, limit: int = 10):
+    if not supabase: return []
+    try:
+        response = supabase.table("messages").select("content").eq("chat_id", chat_id).order("created_at", desc=True).limit(limit).execute()
+        return response.data if response.data else []
+    except Exception as e:
+        logger.error(f"Error fetching last messages for chat {chat_id}: {e}")
+        return []

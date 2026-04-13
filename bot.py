@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import asyncio
+import random
 import logging
 import time
 import aiohttp
@@ -37,12 +38,20 @@ async def silence_breaker(bot: Bot):
         await asyncio.sleep(3600) # Check every hour
         chats = await get_active_chats()
         if chats:
-            chat_id = chats[0] # Just an example, could be random
-            persona = await persona_service.get_persona()
-            msg = [{"role": "system", "content": persona["system_prompt"]}, {"role": "user", "content": "Скажи что-нибудь ироничное в чат."}]
-            text = await ai_service.call_llm(msg)
-            if text:
+            chat_id = random.choice(chats)
+
+            interjection_options = [
+                "вы вообще за рынком следите?",
+                "кстати, флор двигался сегодня",
+                "тишина подозрительная",
+                "киты что-то мутят"
+            ]
+            text = random.choice(interjection_options)
+
+            try:
                 await bot.send_message(chat_id, text)
+            except Exception as e:
+                logger.error(f"Silence breaker error: {e}")
 
 async def main():
     if not config.TELEGRAM_TOKEN:

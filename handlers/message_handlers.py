@@ -7,19 +7,22 @@ from config.settings import config
 from services.db_service import get_user, upsert_user, register_chat
 from services.memory_service import memory_service
 from services.agent_loop import agent_loop
+from utils import is_duplicate, can_respond
 
 logger = logging.getLogger(__name__)
 router = Router()
 
-# Global state to prevent double-responding
-LAST_RESPONDED_USER_ID = {}
-
 @router.message(F.chat.type == "private")
 async def handle_private(message: types.Message):
+    if is_duplicate(message.message_id):
+        return
     await process_message(message)
 
 @router.message(F.chat.type.in_({"group", "supergroup"}))
 async def handle_group(message: types.Message):
+    if is_duplicate(message.message_id):
+        return
+
     bot_obj = await message.bot.get_me()
 
     is_mentioned = bot_obj.username in (message.text or "")
@@ -30,8 +33,7 @@ async def handle_group(message: types.Message):
     should_respond = is_mentioned or is_reply_to_bot or is_joke or is_random
 
     if should_respond:
-        # Anti-spam: check if we just replied to this user
-        if LAST_RESPONDED_USER_ID.get(message.chat.id) == message.from_user.id and not (is_mentioned or is_reply_to_bot):
+        if not can_respond(message.chat.id, message.from_user.id):
             return
         await process_message(message)
 
@@ -49,12 +51,14 @@ async def process_message(message: types.Message):
     await memory_service.process_memory(uid, cid, "user", message.text)
 
     # 3. Get response from Agent Loop
-    response_text = await agent_loop.run(message.text, user)
+    response_text = await agent_loop.run(message.text, user, chat_id=cid)
 
     if response_text:
         # 4. Save response to memory
         await memory_service.process_memory(uid, cid, "assistant", response_text)
 
         # 5. Send
-        await message.reply(response_text)
-        LAST_RESPONDED_USER_ID[cid] = uid
+        try:
+            await message.reply(response_text)
+        except Exception as e:
+            logger.error(f"Error sending message: {e}")
