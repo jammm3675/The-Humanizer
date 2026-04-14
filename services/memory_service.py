@@ -25,12 +25,15 @@ class MemoryService:
         msg_count = user.get("message_count", 0) + (1 if role == "user" else 0)
         updates = {"last_messages": updated_msgs, "message_count": msg_count}
 
-        # 4. Social Graph update
+        # 4. Social Graph & Trust update
         if role == "user":
             new_traits = self.update_social_graph(user, content)
+
+            # 5. Update trust logic
+            new_traits = await self.update_trust(telegram_id, content, "", traits=new_traits)
             updates["personality_traits"] = new_traits
 
-            # 5. Check for background updates
+            # 6. Check for background updates
             if msg_count % 40 == 0:
                 logger.info(f"Triggering summary update for {telegram_id}")
                 history_str = "\n".join([f"{m['role']}: {m['content']}" for m in updated_msgs])
@@ -54,7 +57,7 @@ class MemoryService:
         engagement = traits.get("engagement_score", 0)
         topics = traits.get("last_topics", [])
         style = traits.get("interaction_style", "neutral")
-        trust = traits.get("trust_level", 30)
+        trust = traits.get("trust_level", 3)
 
         # Update engagement
         engagement += 1
@@ -79,6 +82,27 @@ class MemoryService:
         })
         return traits
 
+    async def update_trust(self, telegram_id: int, message: str, response: str, traits: dict = None) -> dict:
+        if traits is None:
+            user = await get_user(telegram_id)
+            traits = user.get("personality_traits", {}) if user else {}
+
+        trust = traits.get("trust_level", 3)
+
+        if len(message) > 20:
+            trust += 1
+
+        msg_lower = message.lower()
+        if "спасибо" in msg_lower or "thanks" in msg_lower:
+            trust += 2
+
+        if "ты туп" in msg_lower or "кринж" in msg_lower:
+            trust -= 1
+
+        trust = max(0, min(trust, 10))
+        traits["trust_level"] = trust
+        return traits
+
     async def build_chat_context(self, chat_id: int) -> str:
         messages = await get_last_chat_messages(chat_id, limit=10)
         # Reverse to get chronological order (they were desc)
@@ -90,28 +114,15 @@ class MemoryService:
     def build_context(self, user_data: dict) -> str:
         traits = user_data.get("personality_traits", {})
         summary = user_data.get("conversation_summary", "")
-        trust = traits.get("trust_level", 30)
+        trust = traits.get("trust_level", 3)
 
         tone = "neutral"
-        if trust > 70:
+        if trust > 7:
             tone = "friendly"
-        elif trust < 30:
+        elif trust < 3:
             tone = "cold"
 
-        context = f"""
-USER PROFILE:
-Trust: {trust}
-Tone: {tone}
-Traits: {traits}
-
-RELATIONSHIP MEMORY:
-{summary if summary else 'No previous history.'}
-
-INSTRUCTION:
-Adapt tone based on trust level.
-Be more friendly if trust is high.
-Be distant if trust is low.
-"""
+        context = f"\nUSER PROFILE:\nTrust: {trust}\nTone: {tone}\nTraits: {traits}\n\nRELATIONSHIP MEMORY:\n{summary if summary else 'No previous history.'}\n\nINSTRUCTION:\nAdapt tone based on trust level.\nBe more friendly if trust is high.\nBe distant if trust is low.\n"
         return context
 
 memory_service = MemoryService()
