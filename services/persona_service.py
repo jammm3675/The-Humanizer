@@ -1,3 +1,4 @@
+from typing import Optional
 # -*- coding: utf-8 -*-
 import logging
 from services.db_service import get_cached_settings
@@ -71,8 +72,8 @@ class PersonaService:
             return 'cold, distant, short'
         return 'neutral, slightly ironic'
 
-    def detect_mode(self, user_state: dict, message: str) -> str:
-        text = message.lower()
+    def detect_mode(self, user_state: Optional[dict], message: str) -> str:
+        text = (message or "").lower()
 
         spicy_triggers = ['лол', 'чел', 'ты туп', 'бред', 'серьезно?', 'ахах', 'кринж']
         lore_triggers = ['лор', 'история', 'вселенная', 'персонажи', 'кто такие']
@@ -87,12 +88,12 @@ class PersonaService:
 
         # SPICY если высокий trust
         traits = (user_state or {}).get('personality_traits', {})
-        if traits.get('trust_level', 3) > 5:
+        if isinstance(traits, dict) and traits.get('trust_level', 3) > 5:
             return 'spicy'
 
         return 'guide'
 
-    def build_system_prompt(self, user: dict, collection: dict, db_layers: list, entries: list, mode: str) -> str:
+    def build_system_prompt(self, user: Optional[dict], collection: dict, db_layers: list, entries: list, mode: str) -> str:
         # 1. BASE RULES (immutable)
         base = (
             "You are Pinkie Ape, a guide inside the NOTAPES universe.\n\n"
@@ -106,14 +107,15 @@ class PersonaService:
         )
 
         # 2. DB LAYERS (sorted by priority)
-        layers_text = "\n".join([l['content'] for l in db_layers])
+        layers_text = "\n".join([l.get('content', '') for l in db_layers if isinstance(l, dict)])
 
         # 3. COLLECTION PROFILE
-        profile = f"\nCollection: {collection.get('name', 'Unknown')}\nTone hint: {collection.get('tone_hint', 'None')}"
+        profile = f"\nCollection: {(collection or {}).get('name', 'Unknown')}\nTone hint: {(collection or {}).get('tone_hint', 'None')}"
 
         # 4. COLLECTION DATA (structured)
         lore, links, faq, stats = [], [], [], []
-        for e in entries:
+        for e in (entries or []):
+            if not isinstance(e, dict): continue
             e_type = e.get('entry_type')
             if e_type == 'lore':
                 lore.append(f"- {e.get('title')}: {e.get('content')}")
@@ -132,10 +134,13 @@ class PersonaService:
         )
 
         # 5. USER STATE
-        traits = (user or {}).get('personality_traits', {})
+        user_safe = user or {}
+        traits = user_safe.get('personality_traits', {})
+        if not isinstance(traits, dict): traits = {}
+
         trust = traits.get('trust_level', 3)
-        familiarity = user.get('familiarity_level', 0)
-        summary = user.get('conversation_summary', '')
+        familiarity = user_safe.get('familiarity_level', 0)
+        summary = user_safe.get('conversation_summary', '')
 
         user_block = (
             f"\nUser trust: {trust}\n"

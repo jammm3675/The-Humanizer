@@ -45,7 +45,9 @@ async def get_user(telegram_id: int):
     if not supabase: return None
     try:
         response = supabase.table('users').select('*').eq('telegram_id', telegram_id).execute()
-        return response.data[0] if response.data else None
+        if hasattr(response, 'data') and response.data:
+            return response.data[0]
+        return None
     except Exception as e:
         logger.error(f'Error fetching user {telegram_id}: {e}')
     return None
@@ -60,7 +62,9 @@ async def upsert_user(telegram_id: int, username: str, first_name: str):
     }
     try:
         response = supabase.table('users').upsert(data, on_conflict='telegram_id').execute()
-        return response.data[0] if response.data else None
+        if hasattr(response, 'data') and response.data:
+            return response.data[0]
+        return None
     except Exception as e:
         logger.error(f'Error upserting user: {e}')
         return None
@@ -77,11 +81,12 @@ async def update_user(telegram_id: int, updates: dict):
 async def register_chat(chat_id: int, chat_type: str, title: str = None):
     if not supabase: return
     try:
-        supabase.table('chats').upsert({
+        data = {
             'chat_id': chat_id,
             'chat_type': chat_type,
             'title': title
-        }, on_conflict='chat_id').execute()
+        }
+        supabase.table('chats').upsert(data, on_conflict='chat_id').execute()
     except Exception as e:
         logger.error(f'Error registering chat {chat_id}: {e}')
 
@@ -139,19 +144,23 @@ async def get_collection(slug: str):
     if not supabase or not slug: return {}
     try:
         response = supabase.table('collections').select('*').eq('slug', slug).execute()
-        return response.data[0] if response.data else {}
+        if hasattr(response, 'data') and response.data:
+            return response.data[0]
+        return {}
     except Exception as e:
         logger.error(f'Error fetching collection {slug}: {e}')
-        return {}
+    return {}
 
 async def get_collection_entries(slug: str):
     if not supabase or not slug: return []
     try:
         response = supabase.table('collection_entries').select('*').eq('collection_slug', slug).execute()
-        return response.data if response.data else []
+        if hasattr(response, 'data') and response.data:
+            return response.data
+        return []
     except Exception as e:
         logger.error(f'Error fetching collection entries for {slug}: {e}')
-        return []
+    return []
 
 async def get_prompt_layers():
     if not supabase: return []
