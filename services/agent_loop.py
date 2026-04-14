@@ -12,11 +12,18 @@ class AgentLoop:
     async def run(self, user_message: str, user_data: dict, chat_id: int = None) -> str:
         # 1. Load context data
         chat = await get_chat(chat_id) if chat_id else {}
+        if chat is None: chat = {}
+
         collection_slug = chat.get("collection_slug") if chat else None
 
         collection = await get_collection(collection_slug) if collection_slug else {}
+        if collection is None: collection = {}
+
         entries = await get_collection_entries(collection_slug) if collection_slug else []
+        if entries is None: entries = []
+
         layers = await get_prompt_layers()
+        if layers is None: layers = []
 
         # 2. Determine mode
         mode = persona_service.detect_mode(user_data, user_message)
@@ -46,7 +53,8 @@ class AgentLoop:
                 messages.append({"role": "system", "content": f"CHAT HISTORY:\n{chat_context}"})
 
             # Add short-term user history
-            for msg in (user_data.get("last_messages") or [])[-4:]:
+            user_safe = user_data or {}
+            for msg in (user_safe.get("last_messages") or [])[-4:]:
                 messages.append(msg)
 
             messages.append({"role": "user", "content": user_message})
