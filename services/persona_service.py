@@ -86,7 +86,7 @@ class PersonaService:
             return 'spicy'
 
         # SPICY если высокий trust
-        traits = user_state.get('personality_traits', {})
+        traits = (user_state or {}).get('personality_traits', {})
         if traits.get('trust_level', 3) > 5:
             return 'spicy'
 
@@ -132,7 +132,7 @@ class PersonaService:
         )
 
         # 5. USER STATE
-        traits = user.get('personality_traits', {})
+        traits = (user or {}).get('personality_traits', {})
         trust = traits.get('trust_level', 3)
         familiarity = user.get('familiarity_level', 0)
         summary = user.get('conversation_summary', '')
